@@ -113,7 +113,9 @@ export default function App() {
       void ensureSession().then((token) => {
         if (cancelled || !token) return;
         const wsBase = BRIDGE_URL.replace(/^http/, "ws");
-        ws = new WebSocket(`${wsBase}/ws${token ? `?token=${encodeURIComponent(token)}` : ""}`);
+        // The edge gate authenticates the handshake; a token in the query
+        // string would leak into access logs, so none is sent here.
+        ws = new WebSocket(`${wsBase}/ws`);
         wsRef.current = ws;
         ws.onopen = () => setStatus("live");
         ws.onerror = () => setStatus("down");
