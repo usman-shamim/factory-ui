@@ -8,7 +8,9 @@ const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 export default defineConfig({
   root: appRoot,
   plugins: [react()],
-  publicDir: `${repoRoot}code-examples`,
+  // The theme CSS is imported by main.tsx, so nothing needs copying. Leaving
+  // publicDir on would publish all 26 .tsx sources under code-examples/.
+  publicDir: false,
   build: {
     outDir: `${repoRoot}dist-app`,
     emptyOutDir: true,
