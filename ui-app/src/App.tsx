@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UserMessageBubble, AssistantMessageBubble } from "../../code-examples/ChatMessageBubbles";
 import { StreamingDiffViewer } from "../../code-examples/StreamingDiffViewer";
 
 const BRIDGE_URL = (import.meta.env.VITE_BRIDGE_URL ?? "").replace(/\/+$/, "");
-const BRIDGE_TOKEN = import.meta.env.VITE_BRIDGE_TOKEN ?? "";
+const LEGACY_TOKEN = import.meta.env.VITE_BRIDGE_TOKEN ?? "";
 
 interface Room {
   id: string;
@@ -24,8 +24,35 @@ interface Wire {
   session?: string;
 }
 
-function authHeaders(): Record<string, string> {
-  return { Authorization: `Bearer ${BRIDGE_TOKEN}` };
+let sessionToken = "";
+let sessionExpiry = 0;
+
+/**
+ * Session mode: no secret ships in the bundle. The bridge verifies the Cloudflare
+ * Access assertion and mints a 15-minute JWT, refreshed before it expires. The
+ * legacy static token is only a fallback when no session can be minted.
+ */
+async function ensureSession(force = false): Promise<string> {
+  if (!force && sessionToken && Date.now() < sessionExpiry - 60_000) return sessionToken;
+  if (BRIDGE_URL) {
+    try {
+      const res = await fetch(`${BRIDGE_URL}/api/session`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (res.ok) {
+        const body = (await res.json()) as { token: string; expiresIn?: number };
+        if (body.token) {
+          sessionToken = body.token;
+          sessionExpiry = Date.now() + (body.expiresIn ?? 900) * 1000;
+          return sessionToken;
+        }
+      }
+    } catch {
+      /* fall back to the legacy token */
+    }
+  }
+  return LEGACY_TOKEN;
 }
 
 function extractDiff(args: unknown): string | null {
@@ -47,53 +74,85 @@ export default function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
+  const applyRooms = useCallback((data: { rooms?: Room[] }) => {
+    setRooms(data.rooms ?? []);
+    setActive((prev) => prev ?? data.rooms?.[0]?.id ?? null);
+  }, []);
+
+  const loadRooms = useCallback(async (): Promise<void> => {
+    const token = await ensureSession();
+    if (!token) {
+      setNotice("Could not establish a session. Enable Cloudflare Access on this host.");
+      return;
+    }
+    try {
+      let res = await fetch(`${BRIDGE_URL}/api/rooms`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 401) {
+        const fresh = await ensureSession(true);
+        res = await fetch(`${BRIDGE_URL}/api/rooms`, {
+          headers: { Authorization: `Bearer ${fresh}` },
+        });
+      }
+      if (!res.ok) throw new Error(`rooms ${res.status}`);
+      applyRooms((await res.json()) as { rooms?: Room[] });
+      setNotice(null);
+    } catch (e) {
+      setNotice(`Could not list rooms: ${(e as Error).message}`);
+    }
+  }, [applyRooms]);
+
   useEffect(() => {
-    if (!BRIDGE_URL || !BRIDGE_TOKEN) {
+    if (!BRIDGE_URL) {
       setStatus("down");
-      setNotice("VITE_BRIDGE_URL and VITE_BRIDGE_TOKEN must be set at build time.");
+      setNotice("VITE_BRIDGE_URL must be set at build time.");
       return;
     }
     let cancelled = false;
+    let ws: WebSocket | null = null;
 
-    fetch(`${BRIDGE_URL}/api/rooms`, { headers: authHeaders() })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`rooms ${r.status}`))))
-      .then((data: { rooms?: Room[] }) => {
-        if (cancelled) return;
-        setRooms(data.rooms ?? []);
-        setActive((prev) => prev ?? data.rooms?.[0]?.id ?? null);
-      })
-      .catch((e: Error) => setNotice(`Could not list rooms: ${e.message}`));
+    void loadRooms().then(() => {
+      if (cancelled) return;
+      void ensureSession().then((token) => {
+        if (cancelled || !token) return;
+        const wsBase = BRIDGE_URL.replace(/^http/, "ws");
+        ws = new WebSocket(`${wsBase}/ws?token=${encodeURIComponent(token)}`);
+        wsRef.current = ws;
+        ws.onopen = () => setStatus("live");
+        ws.onerror = () => setStatus("down");
+        ws.onclose = () => setStatus("down");
+        ws.onmessage = (ev) => {
+          try {
+            const wire = JSON.parse(ev.data as string) as Wire;
+            if (wire.type === "hello" || wire.type === "error") return;
+            setEvents((prev) => [...prev.slice(-400), wire]);
+          } catch {
+            /* ignore malformed frame */
+          }
+        };
+      });
+    });
 
-    const wsBase = BRIDGE_URL.replace(/^http/, "ws");
-    const ws = new WebSocket(`${wsBase}/ws?token=${encodeURIComponent(BRIDGE_TOKEN)}`);
-    wsRef.current = ws;
-    ws.onopen = () => setStatus("live");
-    ws.onerror = () => setStatus("down");
-    ws.onclose = () => setStatus("down");
-    ws.onmessage = (ev) => {
-      try {
-        const wire = JSON.parse(ev.data as string) as Wire;
-        if (wire.type === "hello" || wire.type === "error") return;
-        setEvents((prev) => [...prev.slice(-400), wire]);
-      } catch {
-        /* ignore malformed frame */
-      }
-    };
+    // Refresh ahead of expiry so a long-lived tab keeps working.
+    const timer = window.setInterval(() => void ensureSession(true), 12 * 60 * 1000);
 
     return () => {
       cancelled = true;
-      ws.close();
+      window.clearInterval(timer);
+      ws?.close();
     };
-  }, []);
+  }, [loadRooms]);
 
   const send = async (): Promise<void> => {
     const text = draft.trim();
     if (!text || !active) return;
     setDraft("");
     try {
+      const token = await ensureSession();
       const res = await fetch(`${BRIDGE_URL}/api/rooms/${encodeURIComponent(active)}/message`, {
         method: "POST",
-        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
       const body = (await res.json()) as { delivered?: boolean; target?: string };
@@ -150,6 +209,9 @@ export default function App() {
             <div style={{ fontSize: 14, fontWeight: 600 }}>{active ?? "No room selected"}</div>
             <div style={{ fontSize: 11, opacity: 0.6 }}>{BRIDGE_URL || "bridge URL not configured"}</div>
           </div>
+          <button onClick={() => void loadRooms()} style={refreshBtn}>
+            Refresh
+          </button>
         </header>
 
         {notice && <div style={noticeBar}>{notice}</div>}
@@ -244,6 +306,15 @@ const mainHead: React.CSSProperties = {
   borderBottom: "1px solid rgba(0,0,0,.08)",
   display: "flex",
   justifyContent: "space-between",
+  alignItems: "center",
+};
+const refreshBtn: React.CSSProperties = {
+  fontSize: 12,
+  padding: "4px 10px",
+  borderRadius: 8,
+  border: "1px solid rgba(0,0,0,.14)",
+  background: "transparent",
+  cursor: "pointer",
 };
 const stream: React.CSSProperties = {
   flex: 1,
