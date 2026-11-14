@@ -86,14 +86,10 @@ export default function App() {
       return;
     }
     try {
-      let res = await fetch(`${BRIDGE_URL}/api/rooms`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      let res = await fetch(`${BRIDGE_URL}/api/rooms`, { headers: token ? { "X-Farm-Token": token } : {} });
       if (res.status === 401) {
         const fresh = await ensureSession(true);
-        res = await fetch(`${BRIDGE_URL}/api/rooms`, {
-          headers: { Authorization: `Bearer ${fresh}` },
-        });
+        res = await fetch(`${BRIDGE_URL}/api/rooms`, { headers: fresh ? { "X-Farm-Token": fresh } : {} });
       }
       if (!res.ok) throw new Error(`rooms ${res.status}`);
       applyRooms((await res.json()) as { rooms?: Room[] });
@@ -117,7 +113,7 @@ export default function App() {
       void ensureSession().then((token) => {
         if (cancelled || !token) return;
         const wsBase = BRIDGE_URL.replace(/^http/, "ws");
-        ws = new WebSocket(`${wsBase}/ws?token=${encodeURIComponent(token)}`);
+        ws = new WebSocket(`${wsBase}/ws${token ? `?token=${encodeURIComponent(token)}` : ""}`);
         wsRef.current = ws;
         ws.onopen = () => setStatus("live");
         ws.onerror = () => setStatus("down");
@@ -152,7 +148,7 @@ export default function App() {
       const token = await ensureSession();
       const res = await fetch(`${BRIDGE_URL}/api/rooms/${encodeURIComponent(active)}/message`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(token ? { "X-Farm-Token": token } : {}) },
         body: JSON.stringify({ text }),
       });
       const body = (await res.json()) as { delivered?: boolean; target?: string };
