@@ -18,3 +18,12 @@ export default defineConfig({
     target: "es2020",
   },
 });
+
+// A Pages value pasted as a markdown autolink keeps its brackets and the app
+// then calls an unreachable host, so fail loudly at build time instead.
+const bridgeUrl = process.env.VITE_BRIDGE_URL ?? "";
+if (!/^https?:\/\//.test(bridgeUrl)) {
+  throw new Error(
+    `VITE_BRIDGE_URL must be a bare URL beginning with http(s):// — got ${JSON.stringify(bridgeUrl)}`,
+  );
+}
