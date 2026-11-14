@@ -243,14 +243,7 @@ export default function App() {
               );
             }
             if (e.type === "tool_result" && e.text) {
-              return (
-                <div key={i} style={toolLine}>
-                  <code style={{ fontSize: 12, opacity: 0.7 }}>result</code>
-                  <span style={{ opacity: 0.6, fontSize: 11, whiteSpace: "pre-wrap" }}>
-                    {e.text.slice(0, 240)}
-                  </span>
-                </div>
-              );
+              return <LogAccordion key={i} label="result" text={e.text} />;
             }
             if (e.type === "message" && e.text) {
               return e.role === "user" ? (
@@ -284,6 +277,25 @@ export default function App() {
         </footer>
       </main>
     </div>
+  );
+}
+
+/**
+ * Tool output is logged, not read: collapsed to one line by default so a burst of
+ * bash/read results cannot bury the assistant's actual replies.
+ */
+function LogAccordion({ label, text }: { label: string; text: string }) {
+  const firstLine = text.split("\n").find((line) => line.trim()) ?? "";
+  const lineCount = text.split("\n").length;
+  return (
+    <details style={logDetails}>
+      <summary style={logSummary}>
+        <code style={logLabel}>{label}</code>
+        <span style={logPreview}>{firstLine.replace(/\s+/g, " ").slice(0, 110)}</span>
+        <span style={logCount}>{lineCount}L</span>
+      </summary>
+      <pre style={logPre}>{text}</pre>
+    </details>
   );
 }
 
@@ -356,6 +368,40 @@ const sendBtn: React.CSSProperties = {
   fontWeight: 600,
   cursor: "pointer",
 };
+const logDetails: React.CSSProperties = {
+  borderRadius: 8,
+  background: "rgba(0,0,0,.035)",
+  padding: "4px 10px",
+};
+const logSummary: React.CSSProperties = {
+  display: "flex",
+  alignItems: "baseline",
+  gap: 8,
+  cursor: "pointer",
+  listStyle: "none",
+  fontSize: 11,
+};
+const logLabel: React.CSSProperties = { fontSize: 12, opacity: 0.7 };
+const logPreview: React.CSSProperties = {
+  flex: 1,
+  opacity: 0.5,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+const logCount: React.CSSProperties = { fontSize: 10, opacity: 0.4, whiteSpace: "nowrap" };
+const logPre: React.CSSProperties = {
+  margin: "6px 0 2px",
+  padding: 0,
+  maxHeight: 320,
+  overflow: "auto",
+  fontSize: 11,
+  lineHeight: 1.45,
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
+  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+};
+
 const toolLine: React.CSSProperties = {
   display: "flex",
   gap: 8,

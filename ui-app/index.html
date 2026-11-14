@@ -4,7 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Factory — Firstmate</title>
-    
+    <style>
+      /* Collapsed tool logs: show our own caret, not the native triangle. */
+      details > summary { list-style: none; }
+      details > summary::-webkit-details-marker { display: none; }
+      details[open] > summary > code { opacity: 1; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
