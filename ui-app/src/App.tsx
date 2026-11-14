@@ -240,6 +240,16 @@ export default function App() {
                 </div>
               );
             }
+            if (e.type === "tool_result" && e.text) {
+              return (
+                <div key={i} style={toolLine}>
+                  <code style={{ fontSize: 12, opacity: 0.7 }}>result</code>
+                  <span style={{ opacity: 0.6, fontSize: 11, whiteSpace: "pre-wrap" }}>
+                    {e.text.slice(0, 240)}
+                  </span>
+                </div>
+              );
+            }
             if (e.type === "message" && e.text) {
               return e.role === "user" ? (
                 <UserMessageBubble key={i} text={e.text} time={e.at ?? ""} />
