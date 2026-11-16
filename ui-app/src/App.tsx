@@ -91,8 +91,23 @@ function useTheme(): { mode: "light" | "dark"; toggle: () => void } {
   return { mode, toggle: () => setMode((m) => (m === "dark" ? "light" : "dark")) };
 }
 
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState<boolean>(() => window.matchMedia?.(query)?.matches ?? false);
+  useEffect(() => {
+    const mq = window.matchMedia?.(query);
+    if (!mq) return;
+    const onChange = () => setMatches(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
+}
+
 export default function App() {
   const { mode, toggle } = useTheme();
+  const narrow = useMediaQuery("(max-width: 760px)");
+  const [navOpen, setNavOpen] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [events, setEvents] = useState<Wire[]>([]);
@@ -276,8 +291,15 @@ export default function App() {
   }, [events]);
 
   return (
-    <div style={shell}>
-      <aside style={sidebar}>
+    <div style={narrow ? narrowShell : shell}>
+      {narrow && navOpen && (
+        <button
+          aria-label="Close navigation"
+          onClick={() => setNavOpen(false)}
+          style={backdrop}
+        />
+      )}
+      <aside style={narrow ? (navOpen ? drawerOpen : drawer) : sidebar}>
         <header style={sideHead}>
           <strong style={{ fontSize: 14 }}>Factory</strong>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -316,7 +338,10 @@ export default function App() {
         {rooms.map((r) => (
           <button
             key={r.id}
-            onClick={() => setActive(r.id)}
+            onClick={() => {
+              setActive(r.id);
+              setNavOpen(false);
+            }}
             style={row(active === r.id)}
             title={r.branch ?? r.id}
           >
@@ -336,8 +361,15 @@ export default function App() {
 
       <main style={main}>
         <header style={mainHead}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>{active ?? "No room selected"}</div>
+          {narrow && (
+            <button onClick={() => setNavOpen(true)} style={refreshBtn} aria-label="Open navigation">
+              ☰
+            </button>
+          )}
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {active ?? "No room selected"}
+            </div>
             <div style={{ fontSize: 11, opacity: 0.6 }}>{BRIDGE_URL || "bridge URL not configured"}</div>
           </div>
           <button onClick={() => void loadRooms()} style={refreshBtn}>
@@ -448,7 +480,11 @@ export default function App() {
             rows={2}
             disabled={!active}
           />
-          <button onClick={() => void send()} style={sendBtn} disabled={!draft.trim() || !active}>
+          <button
+            onClick={() => void send()}
+            style={narrow ? { ...sendBtn, width: "100%" } : sendBtn}
+            disabled={!draft.trim() || !active}
+          >
             Send
           </button>
         </footer>
@@ -524,6 +560,7 @@ const stream: React.CSSProperties = {
 };
 const composer: React.CSSProperties = {
   display: "flex",
+  flexWrap: "wrap",
   gap: 8,
   padding: 12,
   borderTop: "1px solid var(--cds-border)",
@@ -684,5 +721,40 @@ const primaryBtn: React.CSSProperties = {
   background: "var(--cds-clay)",
   color: "#fff",
   fontWeight: 600,
+  cursor: "pointer",
+};
+
+const narrowShell: React.CSSProperties = {
+  ...shell,
+  gridTemplateColumns: "1fr",
+  position: "relative",
+};
+const drawer: React.CSSProperties = {
+  ...sidebar,
+  position: "fixed",
+  top: 0,
+  bottom: 0,
+  left: 0,
+  width: "82vw",
+  maxWidth: 300,
+  zIndex: 30,
+  borderRight: "1px solid var(--cds-border)",
+  transform: "translateX(-102%)",
+  transition: "transform 180ms ease",
+  visibility: "hidden",
+};
+const drawerOpen: React.CSSProperties = {
+  ...drawer,
+  transform: "translateX(0)",
+  visibility: "visible",
+  boxShadow: "0 0 0 100vmax rgba(0,0,0,.45)",
+};
+const backdrop: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 20,
+  border: "none",
+  padding: 0,
+  background: "transparent",
   cursor: "pointer",
 };
