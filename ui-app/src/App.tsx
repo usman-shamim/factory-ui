@@ -22,6 +22,55 @@ interface Project {
   repo: string | null;
 }
 
+interface Capacity {
+  freeLanes: number | null;
+  lanes: number | null;
+  target: number | null;
+  reason: string | null;
+}
+
+interface CrewLane {
+  id: string;
+  project: string;
+  state: string;
+  branch: string | null;
+  pr: string | null;
+  window: string | null;
+}
+
+interface Crew {
+  id: string;
+  home: string;
+  kind: "primary" | "secondmate";
+  scope: string | null;
+  lanes: CrewLane[];
+}
+
+interface QueuedTask {
+  id: string;
+  title: string;
+  repo: string | null;
+  state: string;
+  blocked: string | null;
+  since: string | null;
+  pr: string | null;
+}
+
+interface CrewsResponse {
+  capacity: Capacity;
+  crews: Crew[];
+  queued: QueuedTask[];
+}
+
+interface GateRow {
+  project: string;
+  initialised: boolean;
+  daemon: string | null;
+  activeRun: string | null;
+  lastRun: { state: string; branch: string; commit: string; when: string; pr: string | null } | null;
+  error?: string;
+}
+
 interface Wire {
   type: string;
   role?: string;
@@ -121,6 +170,10 @@ export default function App() {
   const [visibility, setVisibility] = useState<"private" | "public">("private");
   const [attachRepo, setAttachRepo] = useState("");
   const [queued, setQueued] = useState<string | null>(null);
+  const [view, setView] = useState<"crew" | "fleet" | "gate">("crew");
+  const [crews, setCrews] = useState<CrewsResponse | null>(null);
+  const [gate, setGate] = useState<GateRow[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   const applyRooms = useCallback((data: { rooms?: Room[] }) => {
@@ -218,6 +271,62 @@ export default function App() {
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     return { ok: res.ok, body, status: res.status };
   };
+
+  const getJson = useCallback(async <T,>(path: string): Promise<T | null> => {
+    const token = await ensureSession();
+    const res = await fetch(`${BRIDGE_URL}${path}`, {
+      headers: token ? { "X-Farm-Token": token } : {},
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  }, []);
+
+  const loadFleet = useCallback(async (): Promise<void> => {
+    const data = await getJson<CrewsResponse>("/api/crews");
+    if (data) setCrews(data);
+  }, [getJson]);
+
+  const loadGate = useCallback(async (): Promise<void> => {
+    const data = await getJson<{ projects?: GateRow[] }>("/api/gate");
+    if (data) setGate(data.projects ?? []);
+  }, [getJson]);
+
+  useEffect(() => {
+    if (view === "fleet") void loadFleet();
+    if (view === "gate") void loadGate();
+  }, [view, loadFleet, loadGate]);
+
+  /** Destructive: teardown returns the worktree and stops the crewmate. */
+  const killLane = async (id: string): Promise<void> => {
+    if (!window.confirm(`Kill lane ${id}?\n\nThis returns the worktree and stops the crew. Unlanded work is discarded.`)) {
+      return;
+    }
+    setBusy(id);
+    const r = await postJson(`/api/lanes/${encodeURIComponent(id)}/kill`, {});
+    setBusy(null);
+    setNotice(r.ok ? `Lane ${id} torn down.` : String(r.body.error ?? `Kill failed (${r.status})`));
+    void loadFleet();
+  };
+
+  const sendFindings = async (row: GateRow): Promise<void> => {
+    const lane = crews?.crews.flatMap((c) => c.lanes).find((l) => l.project === row.project);
+    if (!lane) {
+      setNotice(`No active lane on ${row.project} to receive the findings.`);
+      return;
+    }
+    const text =
+      `Review gate findings for ${row.project} (${row.lastRun?.branch ?? "current branch"}):\n` +
+      `1. spec conformance — check that no test assertion was removed or weakened.\n` +
+      `2. quality and risk — extend contracts instead of replacing them; check every caller.`;
+    const r = await postJson(`/api/rooms/${encodeURIComponent(lane.id)}/message`, { text });
+    setNotice(r.ok ? `Findings sent to ${lane.id}.` : String(r.body.error ?? `Send failed (${r.status})`));
+  };
+
+  const laneRows = useMemo(
+    () => crews?.crews.flatMap((c) => c.lanes.map((l) => ({ ...l, crew: c.id }))) ?? [],
+    [crews],
+  );
+  const queuedRows = crews?.queued ?? [];
 
   const createProject = async (): Promise<void> => {
     const name = newName.trim();
@@ -372,6 +481,13 @@ export default function App() {
             </div>
             <div style={{ fontSize: 11, opacity: 0.6 }}>{BRIDGE_URL || "bridge URL not configured"}</div>
           </div>
+          <div style={sNav}>
+            {(["crew", "fleet", "gate"] as const).map((v) => (
+              <button key={v} onClick={() => setView(v)} style={view === v ? sNavOn : sNavOff}>
+                {v === "gate" ? "Gate" : v === "fleet" ? "Fleet" : "Crew"}
+              </button>
+            ))}
+          </div>
           <button onClick={() => void loadRooms()} style={refreshBtn}>
             Refresh
           </button>
@@ -379,6 +495,7 @@ export default function App() {
 
         {notice && <div style={noticeBar}>{notice}</div>}
 
+        <div style={view === "crew" ? sPaneShow : sPaneHide}>
         {panel !== "none" && (
           <div style={formCard}>
             {panel === "new" ? (
@@ -488,6 +605,173 @@ export default function App() {
             Send
           </button>
         </footer>
+        </div>
+
+        {view === "fleet" && (
+          <div style={sPane}>
+            <div style={sCards}>
+              <div style={sCard}>
+                <div style={sCardLabel}>Lanes</div>
+                <div style={sCardValue}>
+                  {crews?.capacity.freeLanes ?? "—"}
+                  <span style={sCardSub}> free / {crews?.capacity.target ?? "—"}</span>
+                </div>
+                <div style={sCardSub}>{crews?.capacity.reason ?? "no verdict"}</div>
+              </div>
+              <div style={sCard}>
+                <div style={sCardLabel}>Crews</div>
+                <div style={sCardValue}>{crews?.crews.length ?? "—"}</div>
+                <div style={sCardSub}>firstmate + secondmates</div>
+              </div>
+              <div style={sCard}>
+                <div style={sCardLabel}>Queued</div>
+                <div style={sCardValue}>{crews?.queued.length ?? "—"}</div>
+                <div style={sCardSub}>waiting on capacity</div>
+              </div>
+            </div>
+
+            <div style={sPanel}>
+              <div style={sPanelHead}>
+                <strong style={{ fontSize: 12 }}>Active lanes</strong>
+                <span style={sMuted}>{crews?.capacity.lanes ?? 0} running</span>
+                <span style={{ flex: 1 }} />
+                <button style={refreshBtn} onClick={() => void loadFleet()}>Refresh</button>
+              </div>
+              <div style={sTableWrap}>
+                <table style={sTable}>
+                  <thead>
+                    <tr>
+                      <th style={sTh}>Task</th><th style={sTh}>Project</th><th style={sTh}>State</th>
+                      <th style={sTh}>Branch</th><th style={sTh}>PR</th><th style={sTh}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {laneRows.length === 0 && (
+                      <tr><td style={sTd} colSpan={6}><span style={sMuted}>No active lanes.</span></td></tr>
+                    )}
+                    {laneRows.map((l) => (
+                      <tr key={l.id}>
+                        <td style={sTd}>{l.id}</td>
+                        <td style={sTd}>{l.project}</td>
+                        <td style={sTd}>{l.state}</td>
+                        <td style={sTd}>{l.branch ? <code style={sCode}>{l.branch}</code> : "—"}</td>
+                        <td style={sTd}>
+                          {l.pr ? <a style={sLink} href={l.pr} target="_blank" rel="noopener">PR</a> : "—"}
+                        </td>
+                        <td style={sTd}>
+                          <button style={sDanger} onClick={() => void killLane(l.id)} disabled={busy === l.id}>
+                            {busy === l.id ? "…" : "Kill Lane"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div style={sPanel}>
+              <div style={sPanelHead}>
+                <strong style={{ fontSize: 12 }}>Queued backlog</strong>
+                <span style={sMuted}>webhook + captain</span>
+              </div>
+              <div style={sTableWrap}>
+                <table style={sTable}>
+                  <thead>
+                    <tr>
+                      <th style={sTh}>Task</th><th style={sTh}>Repo</th><th style={sTh}>State</th>
+                      <th style={sTh}>Blocked by</th><th style={sTh}>Since</th><th style={sTh}>PR</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {queuedRows.length === 0 && (
+                      <tr><td style={sTd} colSpan={6}><span style={sMuted}>Nothing queued.</span></td></tr>
+                    )}
+                    {queuedRows.map((q) => (
+                      <tr key={q.id}>
+                        <td style={sTd}>{q.title}</td>
+                        <td style={sTd}>{q.repo ?? "—"}</td>
+                        <td style={sTd}>{q.state}</td>
+                        <td style={sTd}>{q.blocked ?? "—"}</td>
+                        <td style={sTd}>{q.since ?? "—"}</td>
+                        <td style={sTd}>
+                          {q.pr ? <a style={sLink} href={q.pr} target="_blank" rel="noopener">PR</a> : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {view === "gate" && (
+          <div style={sPane}>
+            <div style={sPanel}>
+              <div style={sPanelHead}>
+                <strong style={{ fontSize: 12 }}>Projects under gate</strong>
+                <span style={sMuted}>one daemon · many repos</span>
+                <span style={{ flex: 1 }} />
+                <button style={refreshBtn} onClick={() => void loadGate()}>Refresh</button>
+              </div>
+              <div style={sTableWrap}>
+                <table style={sTable}>
+                  <thead>
+                    <tr>
+                      <th style={sTh}>Project</th><th style={sTh}>Gate</th><th style={sTh}>Daemon</th>
+                      <th style={sTh}>Last run</th><th style={sTh}>PR</th><th style={sTh}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gate.length === 0 && (
+                      <tr><td style={sTd} colSpan={6}><span style={sMuted}>No projects found.</span></td></tr>
+                    )}
+                    {gate.map((g) => (
+                      <tr key={g.project}>
+                        <td style={sTd}>{g.project}</td>
+                        <td style={sTd}>
+                          {g.initialised ? <span style={sOkChip}>initialised</span> : <span style={sWarnChip}>not initialised</span>}
+                        </td>
+                        <td style={sTd}>{g.daemon ?? "—"}</td>
+                        <td style={sTd}>{g.lastRun ? `${g.lastRun.state} · ${g.lastRun.branch}` : "—"}</td>
+                        <td style={sTd}>
+                          {g.lastRun?.pr ? (
+                            <a style={sLink} href={g.lastRun.pr} target="_blank" rel="noopener">PR</a>
+                          ) : ("—")}
+                        </td>
+                        <td style={sTd}>
+                          <button style={sBtn} onClick={() => void sendFindings(g)} disabled={!g.initialised}>
+                            Send Findings to Crew
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div style={sAxes}>
+              <div style={sAxis}>
+                <div style={sAxisTitle}>Axis 1 — spec conformance</div>
+                <ul style={sList}>
+                  <li>Does the diff do what the task asked, and only that?</li>
+                  <li>Are the original tests still asserting the original contract?</li>
+                  <li><strong>Deleted assertions are findings, not fixes.</strong></li>
+                </ul>
+              </div>
+              <div style={sAxis}>
+                <div style={sAxisTitle}>Axis 2 — quality &amp; risk</div>
+                <ul style={sList}>
+                  <li>Regression surface: every caller of a changed function.</li>
+                  <li>Additive vs destructive: extend contracts, never replace them.</li>
+                  <li>CI parity: the same gate the repo runs.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
@@ -757,4 +1041,93 @@ const backdrop: React.CSSProperties = {
   padding: 0,
   background: "transparent",
   cursor: "pointer",
+};
+
+const sPane: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+  flex: 1,
+  minHeight: 0,
+  overflowY: "auto",
+  padding: "12px 18px",
+};
+const sPaneShow: React.CSSProperties = { display: "flex", flexDirection: "column", flex: 1, minHeight: 0 };
+const sPaneHide: React.CSSProperties = { display: "none" };
+const sNav: React.CSSProperties = { display: "flex", gap: 4, marginRight: 8 };
+const sNavOn: React.CSSProperties = {
+  fontSize: 11, padding: "4px 10px", borderRadius: 8, cursor: "pointer",
+  border: "1px solid var(--cds-border)", background: "var(--cds-bg-selected)",
+  color: "var(--cds-text-primary)", fontWeight: 600,
+};
+const sNavOff: React.CSSProperties = {
+  fontSize: 11, padding: "4px 10px", borderRadius: 8, cursor: "pointer",
+  border: "1px solid transparent", background: "transparent", color: "var(--cds-text-secondary)",
+};
+const sCards: React.CSSProperties = {
+  display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10,
+};
+const sCard: React.CSSProperties = {
+  border: "1px solid var(--cds-border)", borderRadius: 12, padding: 12,
+  background: "var(--cds-bg-surface)", display: "flex", flexDirection: "column", gap: 2,
+};
+const sCardLabel: React.CSSProperties = {
+  fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--cds-text-muted)",
+};
+const sCardValue: React.CSSProperties = { fontSize: 20, fontWeight: 650, color: "var(--cds-text-primary)" };
+const sCardSub: React.CSSProperties = { fontSize: 11, color: "var(--cds-text-muted)", fontWeight: 400 };
+const sPanel: React.CSSProperties = {
+  border: "1px solid var(--cds-border)", borderRadius: 12,
+  background: "var(--cds-bg-surface)", overflow: "hidden",
+};
+const sPanelHead: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 8, padding: "9px 12px",
+  borderBottom: "1px solid var(--cds-border)", background: "var(--cds-bg-secondary)",
+};
+const sMuted: React.CSSProperties = { fontSize: 11, color: "var(--cds-text-muted)" };
+const sTableWrap: React.CSSProperties = { overflowX: "auto" };
+const sTable: React.CSSProperties = { width: "100%", borderCollapse: "collapse", fontSize: 12 };
+const sTh: React.CSSProperties = {
+  textAlign: "left", padding: "7px 10px", fontSize: 10, textTransform: "uppercase",
+  letterSpacing: "0.06em", color: "var(--cds-text-muted)", borderBottom: "1px solid var(--cds-border)",
+  whiteSpace: "nowrap",
+};
+const sTd: React.CSSProperties = {
+  padding: "7px 10px", borderBottom: "1px solid var(--cds-border)",
+  color: "var(--cds-text-primary)", verticalAlign: "middle",
+};
+const sCode: React.CSSProperties = {
+  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 11,
+  background: "var(--cds-bg-neutral)", padding: "1px 5px", borderRadius: 4,
+};
+const sLink: React.CSSProperties = { color: "var(--cds-text-accent)", textDecoration: "none" };
+const sDanger: React.CSSProperties = {
+  fontSize: 11, padding: "4px 9px", borderRadius: 7, cursor: "pointer",
+  border: "1px solid var(--cds-border)", background: "transparent", color: "#d1453b",
+};
+const sBtn: React.CSSProperties = {
+  fontSize: 11, padding: "4px 9px", borderRadius: 7, cursor: "pointer",
+  border: "1px solid var(--cds-border)", background: "transparent",
+  color: "var(--cds-text-secondary)",
+};
+const sOkChip: React.CSSProperties = {
+  fontSize: 10, padding: "1px 7px", borderRadius: 999,
+  background: "color-mix(in srgb, var(--cds-clay) 14%, transparent)", color: "var(--cds-clay)",
+};
+const sWarnChip: React.CSSProperties = {
+  fontSize: 10, padding: "1px 7px", borderRadius: 999,
+  background: "color-mix(in srgb, #d99114 16%, transparent)", color: "#d99114",
+};
+const sAxes: React.CSSProperties = {
+  display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10,
+};
+const sAxis: React.CSSProperties = {
+  border: "1px solid var(--cds-border)", borderRadius: 12, padding: 12,
+  background: "var(--cds-bg-surface)",
+};
+const sAxisTitle: React.CSSProperties = {
+  fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--cds-text-primary)",
+};
+const sList: React.CSSProperties = {
+  margin: 0, paddingLeft: 16, fontSize: 12, color: "var(--cds-text-secondary)", lineHeight: 1.6,
 };
