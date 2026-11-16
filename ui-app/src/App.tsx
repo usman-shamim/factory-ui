@@ -296,6 +296,13 @@ export default function App() {
     if (view === "gate") void loadGate();
   }, [view, loadFleet, loadGate]);
 
+  /** One refresh action, scoped to the view in front of you. */
+  const refreshCurrent = useCallback((): void => {
+    if (view === "fleet") void loadFleet();
+    else if (view === "gate") void loadGate();
+    else void loadRooms();
+  }, [view, loadFleet, loadGate, loadRooms]);
+
   /** Destructive: teardown returns the worktree and stops the crewmate. */
   const killLane = async (id: string): Promise<void> => {
     if (!window.confirm(`Kill lane ${id}?\n\nThis returns the worktree and stops the crew. Unlanded work is discarded.`)) {
@@ -488,7 +495,7 @@ export default function App() {
               </button>
             ))}
           </div>
-          <button onClick={() => void loadRooms()} style={refreshBtn}>
+          <button onClick={refreshCurrent} style={refreshBtn}>
             Refresh
           </button>
         </header>
@@ -626,7 +633,6 @@ export default function App() {
                 <strong style={sSectionTitle}>Active lanes</strong>
                 <span style={sMuted}>{crews?.capacity.lanes ?? 0} running</span>
                 <span style={{ flex: 1 }} />
-                <button style={refreshBtn} onClick={() => void loadFleet()}>Refresh</button>
               </div>
               <div style={sTableWrap}>
                 <table style={sTable}>
@@ -704,7 +710,6 @@ export default function App() {
                 <strong style={sSectionTitle}>Projects under gate</strong>
                 <span style={sMuted}>one daemon · many repos</span>
                 <span style={{ flex: 1 }} />
-                <button style={refreshBtn} onClick={() => void loadGate()}>Refresh</button>
               </div>
               <div style={sTableWrap}>
                 <table style={sTable}>
