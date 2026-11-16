@@ -183,6 +183,7 @@
       <button class="tab" role="tab" aria-selected="false" data-v="crew">Crew</button>
       <button class="tab" role="tab" aria-selected="false" data-v="gate">Review gate</button>
       <button class="tab" role="tab" aria-selected="false" data-v="map">Map</button>
+      <button class="tab" role="tab" aria-selected="false" data-v="status">Status</button>
     </div>
     <div class="spacer"></div>
     <span class="chip ok lanes">2 / 2 lanes</span>
@@ -547,6 +548,44 @@
           </tbody>
         </table>
       </div>
+    </section>
+
+    <!-- ---------------- STATUS ---------------- -->
+    <section class="view" id="v-status">
+      <h1>Status</h1>
+      <p class="lede">What is true right now, and what is still open. Kept in step with the handoff document at <code>factory-handoff-2026-11-16.md</code>.</p>
+
+      <div class="panel">
+        <div class="ph"><strong>Live state</strong><span class="spacer"></span><span class="label">2026-11-16</span></div>
+        <div class="pb" style="padding:0">
+          <table>
+            <tbody>
+              <tr><td>Lanes</td><td>2 free of 2, <code>reason=ok</code></td></tr>
+              <tr><td>Secondmate</td><td><code>sentinel</code> seeded for <code>sentinal-media</code>, idle, 0 processes</td></tr>
+              <tr><td>KSoR</td><td>6 documents, 5 admitted to a machine surface</td></tr>
+              <tr><td>Repository</td><td><code>usman-shamim/factory-ui</code>, public, MIT</td></tr>
+              <tr><td>This page</td><td>served at <code>/sketch/</code> behind the same SSO as the app; skills, connectors and models are live</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <div class="ph"><strong>Open work</strong><span class="spacer"></span><span class="chip warn">7 items</span></div>
+        <div class="pb">
+          <ol style="margin:0;padding-left:18px;color:var(--dim);font-size:12px;line-height:1.9">
+            <li>Wire this page's <strong>Projects</strong> tab to <code>/api/github/repos</code> for both <code>mine</code> and <code>discover</code>.</li>
+            <li>MCP lists 0 here: the servers live in the desktop config, not on the VM.</li>
+            <li><code>gh</code> is 2.45; a crew needs 2.50+ to finish its own pull request.</li>
+            <li>No loading state on <code>/api/crews</code> or <code>/api/gate</code>; stale values linger during a fetch.</li>
+            <li>No accessibility pass yet. Focus is still the browser default.</li>
+            <li>This sketch has five tabs, the app has three. Choose the target before more UI work.</li>
+            <li>Model selection is read-only here. <code>POST /api/setup/model</code> exists and nothing calls it.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="note">The shipped console is at <a class="pl" href="https://factory.usman-hermes.duckdns.org">factory.usman-hermes.duckdns.org</a>. This sketch is the design record; where the two disagree, the app is correct.</div>
     </section>
   </main>
 </div>
