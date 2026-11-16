@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Factory Console — wireframe</title>
+<style>
+  :root{
+    --bg:#151515; --s1:#1a1a19; --s2:#20201f; --s3:#2c2c2a;
+    --line:#383835; --line2:#454442;
+    --txt:#f0efec; --dim:#a5a49a; --faint:#7b7974;
+    --clay:#d97757; --blue:#2a78d6;
+    --ok:#79b47b; --warn:#d9a441; --bad:#d1453b;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:13px;line-height:1.5}
+  .shell{display:grid;grid-template-rows:auto 1fr;height:100vh}
+  header{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--s1)}
+  .brand{font-weight:650;letter-spacing:.2px}
+  .brand span{color:var(--clay)}
+  .tabs{display:flex;gap:4px;margin-left:10px}
+  .tab{padding:5px 11px;border-radius:8px;border:1px solid transparent;background:none;color:var(--dim);cursor:pointer;font:inherit;font-size:12px}
+  .tab:hover{background:var(--s2);color:var(--txt)}
+  .tab[aria-selected="true"]{background:var(--s3);color:var(--txt);border-color:var(--line2)}
+  .spacer{flex:1}
+  .chip{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line2);color:var(--dim)}
+  .chip.ok{color:var(--ok);border-color:#3b5a3c}
+  .chip.warn{color:var(--warn);border-color:#5a4a22}
+  main{overflow:auto;padding:18px}
+  h1{font-size:15px;margin:0 0 4px}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin:0 0 10px;font-weight:600}
+  p.lede{color:var(--dim);margin:0 0 18px;max-width:78ch}
+  .view{display:none}
+  .view.on{display:block}
+
+  /* wireframe primitives */
+  .dash{border:1px dashed var(--line2);border-radius:10px;padding:12px;background:var(--s1)}
+  .panel{border:1px solid var(--line);border-radius:12px;background:var(--s1);overflow:hidden}
+  .panel > .ph{padding:9px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;background:var(--s2)}
+  .panel > .pb{padding:12px}
+  .label{font-size:11px;color:var(--faint)}
+  .row{display:flex;align-items:center;gap:8px}
+  .grow{flex:1}
+
+  /* app shell mock */
+  .mock{display:grid;grid-template-columns:196px 188px 1fr 250px;gap:1px;background:var(--line);border:1px solid var(--line2);border-radius:12px;overflow:hidden;min-height:430px}
+  .zone{background:var(--s1);padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0}
+  .zone .zt{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+  .item{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:8px;background:var(--s2);font-size:12px;min-width:0}
+  .item > .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+  .item.sel{background:var(--s3);box-shadow:inset 2px 0 0 var(--clay)}
+  .dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .dot.run{background:var(--clay)} .dot.idle{background:var(--line2)} .dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)}
+  .btn{font:inherit;font-size:11px;padding:4px 9px;border-radius:7px;border:1px solid var(--line2);background:var(--s2);color:var(--dim);cursor:pointer}
+  .btn:hover{color:var(--txt)}
+  .btn.pri{background:var(--clay);border-color:var(--clay);color:#fff;font-weight:600}
+  .ghost{flex:1;height:26px;border:1px dashed var(--line2);border-radius:8px;display:grid;place-items:center;color:var(--faint);font-size:11px}
+
+  .stream{display:flex;flex-direction:column;gap:9px;overflow:auto}
+  .msg{border-radius:10px;padding:9px 11px;background:var(--s2);font-size:12px;max-width:92%}
+  .msg.me{align-self:flex-end;background:var(--s3)}
+  .msg .who{font-size:10px;color:var(--faint);margin-bottom:3px}
+  .acc{display:flex;align-items:center;gap:8px;padding:5px 9px;border-radius:8px;background:var(--s1);border:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .acc .arrow{color:var(--faint)}
+  .composer{display:flex;gap:7px;margin-top:auto}
+  .composer input{flex:1;background:var(--s3);border:1px solid var(--line2);border-radius:9px;color:var(--txt);padding:8px 10px;font:inherit;font-size:12px}
+
+  /* Crew workspace: one 220px rail so the stream owns the width. */
+  .creww{display:grid;grid-template-columns:220px 1fr;gap:1px;background:var(--line);border:1px solid var(--line2);border-radius:12px;overflow:hidden}
+  .rail{background:var(--s1);padding:10px;display:flex;flex-direction:column;gap:7px;min-width:0}
+  .chat{background:var(--s1);display:flex;flex-direction:column;min-width:0;min-height:440px}
+  .chead{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--s2);flex-wrap:wrap}
+  .cstream{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:9px}
+  .ccomposer{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line);background:var(--s1);position:sticky;bottom:0;flex-wrap:wrap}
+  .ccomposer input{flex:1;min-width:140px;background:var(--s3);border:1px solid var(--line2);border-radius:9px;color:var(--txt);padding:8px 10px;font:inherit;font-size:12px}
+
+  /* Composer toolbar: model, effort, skills and connectors for this crew. */
+  .ctools{display:flex;align-items:center;gap:6px;padding:8px 12px;border-top:1px solid var(--line);background:var(--s1);flex-wrap:wrap;position:relative}
+  .ctool{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);border:1px solid var(--line2);background:var(--s2);border-radius:8px;padding:3px 8px;cursor:pointer;font-family:inherit}
+  .ctool:hover{color:var(--txt);border-color:var(--faint)}
+  .ctool.active{border-color:var(--clay);color:var(--txt)}
+  .ctool b{color:var(--clay);font-weight:600}
+  .ctool select{background:transparent;border:none;color:var(--txt);font:inherit;font-size:11px;outline:none;cursor:pointer}
+  .ctool .seg{display:flex;gap:2px}
+  .ctool .seg button{border:none;background:transparent;color:var(--faint);font:inherit;font-size:11px;padding:1px 5px;border-radius:5px;cursor:pointer}
+  .ctool .seg button.on{background:var(--s3);color:var(--txt)}
+  .pop{position:absolute;bottom:calc(100% + 6px);left:12px;width:min(300px,80vw);max-height:260px;overflow:auto;background:var(--s2);border:1px solid var(--line2);border-radius:10px;padding:8px;z-index:40;box-shadow:0 12px 28px rgba(0,0,0,.45);display:none}
+  .pop.open{display:block}
+  .pop .ph2{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);padding:4px 6px}
+  .pop label{display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:6px;font-size:12px;cursor:pointer}
+  .pop label:hover{background:var(--s3)}
+  .pop .d{color:var(--faint);font-size:10px;margin-left:auto}
+  .drawer{position:fixed;top:0;bottom:0;right:0;width:min(86vw,330px);background:var(--s1);border-left:1px solid var(--line2);z-index:30;transform:translateX(102%);transition:transform 180ms ease;visibility:hidden;padding:12px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+  .drawer.open{transform:translateX(0);visibility:visible}
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:25;border:none;padding:0;cursor:pointer}
+  .lanes{display:flex;gap:6px;flex-wrap:wrap}
+  .lane{border:1px solid var(--line2);border-radius:9px;padding:6px 8px;font-size:11px;min-width:118px;flex:1}
+  .lane .lz{font-size:10px;color:var(--faint)}
+  .acts{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+  .btn.danger{color:var(--bad);border-color:#5a2f2b}
+  .btn.danger:hover{background:#2a1716}
+  a.pl{color:var(--blue);text-decoration:none;border-bottom:1px dotted var(--blue)}
+  a.pl:hover{color:#6aa5e8}
+  .hide{display:none !important}
+  .minionly{display:none}
+
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line)}
+  th{color:var(--faint);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+  code{font-family:var(--mono);font-size:11.5px;background:var(--s2);padding:1px 5px;border-radius:4px;border:1px solid var(--line)}
+  pre{background:var(--s2);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .note{border-left:2px solid var(--clay);padding:2px 0 2px 10px;color:var(--dim);font-size:12px;margin:14px 0}
+  .axis{border:1px solid var(--line);border-radius:10px;padding:10px}
+  .axis h3{margin:0 0 7px;font-size:12px}
+  .axis ul{margin:0;padding-left:16px;color:var(--dim);font-size:12px}
+  .axis li{margin:3px 0}
+  @media (max-width:1050px){
+    .mock{grid-template-columns:1fr 1fr}
+    .grid3{grid-template-columns:1fr}
+  }
+  /* Mobile: every pane stacks, tabs scroll, tables scroll, diagrams shrink. */
+  @media (max-width:760px){
+    header{flex-wrap:wrap;gap:8px;padding:8px 12px}
+    .tabs{order:3;width:100%;overflow-x:auto;margin-left:0;-webkit-overflow-scrolling:touch}
+    .tab{white-space:nowrap}
+    /* lane budget stays visible on a phone — it is the hard constraint */
+    .chip.lanes{order:2;margin-left:auto}
+    main{padding:12px}
+    h1{font-size:14px}
+    .grid2,.grid3{grid-template-columns:1fr}
+    .panel > .pb{padding:10px}
+    table{display:block;overflow-x:auto;white-space:nowrap}
+    pre{font-size:11px}
+    .mermaid svg{max-width:100%;height:auto}
+    .msg{max-width:100%}
+    .row{flex-wrap:wrap}
+    /* Crew: conversation is the screen, rail and activity become drawers. */
+    .creww{grid-template-columns:1fr;border:none;border-radius:0;background:transparent;overflow:visible}
+    .rail{position:fixed;top:0;bottom:0;left:0;width:min(86vw,320px);z-index:30;border-right:1px solid var(--line2);transform:translateX(-102%);visibility:hidden;transition:transform 180ms ease}
+    .creww.rail-open .rail{transform:translateX(0);visibility:visible}
+    .chat{min-height:calc(100vh - 132px)}
+    .chead{padding:8px 10px}
+    .cstream{padding:10px}
+    .ccomposer{padding:8px 10px}
+    .minionly{display:inline-block}
+  }
+</style>
+<script type="module">
+  // Render the architecture map. If the CDN is unreachable the source stays
+  // visible as a code block rather than an empty box.
+  try {
+    const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
+    mermaid.initialize({ startOnLoad: false, theme: 'dark', flowchart: { curve: 'basis' } });
+    await mermaid.run({ nodes: document.querySelectorAll('.mermaid') });
+  } catch (e) {
+    document.querySelectorAll('pre.mermaid').forEach(p => {
+      p.style.whiteSpace = 'pre';
+      p.insertAdjacentHTML('beforebegin', '<div class="label">diagram offline — source shown</div>');
+    });
+  }
+</script>
+</head>
+<body>
+<div style="padding:10px 16px;background:#2a1716;border-bottom:1px solid #5a2f2b;color:#f0efec;font:12px/1.5 ui-sans-serif,system-ui,sans-serif">
+  <strong>Static design sketch, not the app.</strong>
+  Everything below is hand-written sample data and makes no network calls, so it
+  cannot show live lanes. The shipped console is at
+  <a href="https://factory.usman-hermes.duckdns.org" style="color:#d97757">factory.usman-hermes.duckdns.org</a>
+  (Crew / Fleet / Gate, live data). Sketch written 2026-11-16, before the views
+  shipped; superseded by the console in <code>usman-shamim/factory-ui</code>.
+</div>
+
+<div class="shell">
+  <header>
+    <div class="brand"><span>◆</span> Factory Console</div>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-v="fleet">Fleet</button>
+      <button class="tab" role="tab" aria-selected="false" data-v="projects">Projects</button>
+      <button class="tab" role="tab" aria-selected="false" data-v="crew">Crew</button>
+      <button class="tab" role="tab" aria-selected="false" data-v="gate">Review gate</button>
+      <button class="tab" role="tab" aria-selected="false" data-v="map">Map</button>
+    </div>
+    <div class="spacer"></div>
+    <span class="chip ok lanes">2 / 2 lanes</span>
+    <span class="chip">firstmate@agent-vm</span>
+    <button class="chip" id="dynRefresh" title="Reload skills, connectors and models" style="cursor:pointer;background:none;font:inherit;font-size:11px">Refresh</button>
+    <span class="chip" title="theme">☾</span>
+  </header>
+
+  <main>
+    <!-- ---------------- FLEET ---------------- -->
+    <section class="view on" id="v-fleet">
+      <h1>Fleet overview</h1>
+      <p class="lede">Every project, every crew, and what each is doing right now. This is the landing view: one Firstmate, N crews, one lane budget.</p>
+
+      <div class="grid3" style="margin-bottom:14px">
+        <div class="panel"><div class="ph"><span class="dot run"></span> Lanes</div><div class="pb">
+          <div style="font-size:22px;font-weight:650">2 <span style="font-size:12px;color:var(--dim);font-weight:400">/ 2 in use</span></div>
+          <div class="label">config/lane-capacity · admit-spawns enforces</div>
+        </div></div>
+        <div class="panel"><div class="ph"><span class="dot ok"></span> Crews</div><div class="pb">
+          <div style="font-size:22px;font-weight:650">2</div>
+          <div class="label">firstmate + 1 secondmate</div>
+        </div></div>
+        <div class="panel"><div class="ph"><span class="dot warn"></span> Gate queue</div><div class="pb">
+          <div style="font-size:22px;font-weight:650">1</div>
+          <div class="label">awaiting two-axis review</div>
+        </div></div>
+      </div>
+
+      <div class="panel">
+        <div class="ph"><strong>Active work</strong><span class="spacer"></span><span class="label">fm-fleet-snapshot.sh --json</span></div>
+        <div class="pb" style="padding:0">
+          <table>
+            <thead><tr><th>Task</th><th>Project</th><th>Crew</th><th>Lane</th><th>Branch</th><th>Gate</th><th>PR</th><th>Actions</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>e2e-healthcheck</td><td>plantmind-copilot</td><td>firstmate</td><td>1</td>
+                <td><code>fm/e2e-healthcheck</code></td><td><span class="chip ok">passed</span></td>
+                <td><a class="pl" href="https://github.com/usman-shamim/plantmind-copilot/pull/11" target="_blank" rel="noopener">#11</a></td>
+                <td><button class="btn danger" title="Release lane 1 and stop this crew">Kill Lane</button></td>
+              </tr>
+              <tr>
+                <td>csv-import</td><td>plantmind-copilot</td><td>firstmate</td><td>2</td>
+                <td><code>fm/csv-import</code></td><td><span class="chip warn">reviewing</span></td>
+                <td>—</td>
+                <td><button class="btn" title="Send the open finding to this crewmate">Send Fix</button> <button class="btn danger">Kill</button></td>
+              </tr>
+              <tr><td style="color:var(--faint)" colspan="8">— idle lane available —</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Queued work is the thing the UI must never hide: a webhook accepted a
+           task and the lane cap refused to dispatch it. -->
+      <div class="panel" style="margin-top:14px">
+        <div class="ph"><strong>Queued backlog</strong><span class="spacer"></span><span class="chip warn">waiting on lane capacity</span></div>
+        <div class="pb" style="padding:0">
+          <table>
+            <thead><tr><th>Task</th><th>Project</th><th>Source</th><th>Queued</th><th>Blocked by</th><th>Actions</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>add-historian-export</td><td>sentinal-media</td><td><span class="chip">webhook · issue #42</span></td>
+                <td>6m ago</td><td><span class="chip warn">free_lanes=0 reason=memory</span></td>
+                <td><button class="btn pri" title="Dispatch now; refuses if the cap is still full">Dispatch</button> <a class="pl" href="https://github.com/usman-shamim/sentinal-media/issues/42" target="_blank" rel="noopener">issue</a></td>
+              </tr>
+              <tr>
+                <td>fix-flaky-compose-test</td><td>plantmind-copilot</td><td><span class="chip">webhook · issue #39</span></td>
+                <td>18m ago</td><td><span class="chip warn">free_lanes=0 reason=lanes</span></td>
+                <td><button class="btn pri">Dispatch</button> <a class="pl" href="https://github.com/usman-shamim/plantmind-copilot/issues/39" target="_blank" rel="noopener">issue</a></td>
+              </tr>
+              <tr>
+                <td>dark-mode-polish</td><td>factory-ui</td><td><span class="chip">UI</span></td>
+                <td>1h ago</td><td><span class="chip">queued by captain</span></td>
+                <td><button class="btn pri">Dispatch</button> <button class="btn danger">Drop</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="note">Lane capacity is the one hard constraint: a webhook queues work, it never dispatches. The Fleet view must show that refusal honestly, not spin.</div>
+    </section>
+
+    <!-- ---------------- PROJECTS ---------------- -->
+    <section class="view" id="v-projects">
+      <h1>Projects</h1>
+      <p class="lede">GitHub is the project source of truth. Create, fork, attach, or select. Registration is Captain-owned, so a new repo shows as <em>pending intake</em> until the registry confirms it.</p>
+
+      <div class="row" style="margin-bottom:14px;gap:8px">
+        <button class="btn pri">+ Create repository</button>
+        <button class="btn">⇣ Attach existing</button>
+        <button class="btn">⑂ Fork</button>
+        <div class="spacer"></div>
+        <input class="btn" style="width:210px;text-align:left" placeholder="filter owner/name…" />
+      </div>
+
+      <div class="grid3">
+        <div class="panel"><div class="ph"><span class="dot ok"></span> plantmind-copilot</div><div class="pb">
+          <div class="label">usman-shamim/plantmind-copilot · private</div>
+          <div style="margin:8px 0;font-size:12px;color:var(--dim)">FastAPI + OPC UA simulator. E2E factory target.</div>
+          <div class="row"><span class="chip">no-mistakes</span><span class="chip">+yolo</span><span class="spacer"></span><button class="btn">Open</button></div>
+        </div></div>
+        <div class="panel"><div class="ph"><span class="dot idle"></span> sentinal-media</div><div class="pb">
+          <div class="label">usman-shamim/sentinal-media · private</div>
+          <div style="margin:8px 0;font-size:12px;color:var(--dim)">Brand Desk dashboard + Sentinel API.</div>
+          <div class="row"><span class="chip">local-only</span><span class="spacer"></span><button class="btn">Open</button></div>
+        </div></div>
+        <div class="panel" style="opacity:.65"><div class="ph"><span class="dot idle"></span> new-project</div><div class="pb">
+          <div class="label">queued for the Captain…</div>
+          <div style="margin:8px 0;font-size:12px;color:var(--dim)">Repo created; awaiting registry intake.</div>
+          <div class="row"><span class="chip warn">pending intake</span><span class="spacer"></span><button class="btn" disabled>Open</button></div>
+        </div></div>
+      </div>
+
+      <div class="dash" style="margin-top:16px">
+        <h2>Create form (wireframe)</h2>
+        <div class="grid2">
+          <div>
+            <div class="label">Name</div><div class="ghost">my-project</div>
+            <div class="label" style="margin-top:8px">Description</div><div class="ghost">what this project is</div>
+          </div>
+          <div>
+            <div class="label">Visibility</div>
+            <div class="row" style="gap:14px;margin:7px 0 12px"><span>● private</span><span style="color:var(--faint)">○ public</span></div>
+            <div class="label">Delivery mode</div>
+            <div class="row" style="gap:8px;margin-top:6px"><span class="chip">no-mistakes</span><span class="chip">direct-PR</span><span class="chip">local-only</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------------- CREW ---------------- -->
+    <section class="view" id="v-crew">
+      <h1>Crew session</h1>
+      <p class="lede">One 220px rail, and the conversation owns everything else. On a phone the rail and the activity panel become drawers, the composer stays pinned, and the lane budget stays in the header.</p>
+
+      <div class="creww" id="creww">
+        <aside class="rail">
+          <div class="zt">Projects</div>
+          <div class="item sel"><span class="dot ok"></span><span class="nm">plantmind-copilot</span></div>
+          <div class="item"><span class="dot idle"></span><span class="nm">sentinal-media</span></div>
+          <button class="btn">+ new</button>
+
+          <div class="zt" style="margin-top:6px">Crews · 2 / 2 lanes</div>
+          <div class="item sel"><span class="dot run"></span><span class="nm">e2e-healthcheck</span><span class="label">L1</span></div>
+          <div class="item"><span class="dot run"></span><span class="nm">csv-import</span><span class="label">L2</span></div>
+          <div class="item"><span class="dot idle"></span><span class="nm">historian-map</span><span class="label">idle</span></div>
+          <div class="ghost">lane 3 — capacity</div>
+
+          <div class="zt" style="margin-top:6px">Crew</div>
+          <div class="item sel"><span class="dot run"></span><span class="nm">firstmate / captain</span></div>
+          <div class="item"><span class="dot ok"></span><span class="nm">secondmate · sentinel</span></div>
+          <div class="zt" style="margin-top:6px">Worktree</div>
+          <div class="dash" style="font-size:11px;font-family:var(--mono)">.treehouse/plantmind-…<br/>1/plantmind-copilot</div>
+          <div class="zt" style="margin-top:6px">Context</div>
+          <div class="label">MAP.md · CONTEXT.md<br/>pytest · 90 passed</div>
+        </aside>
+
+        <section class="chat">
+          <div class="chead">
+            <button class="btn minionly" id="openRail" aria-label="Open crews">☰</button>
+            <strong style="font-size:12px">e2e-healthcheck</strong>
+            <span class="chip ok">2 / 2 lanes</span>
+            <span class="chip">L1</span>
+            <div class="spacer"></div>
+            <a class="pl" href="https://github.com/usman-shamim/plantmind-copilot/pull/11" target="_blank" rel="noopener">PR #11</a>
+            <button class="btn" id="openAct">Activity</button>
+            <button class="btn danger" title="Release this lane and stop the crew">Kill Lane</button>
+            <button class="btn" title="Send the current review finding to the crewmate">Send Fix to Crew</button>
+          </div>
+
+          <div class="cstream">
+            <div class="msg"><div class="who">Capt. firstmate</div>Dispatching healthcheck slice in no-mistakes mode. Lane 1 of 2.</div>
+            <div class="acc"><span class="arrow">▸</span> bash · pytest -q <span class="spacer"></span>90L</div>
+            <div class="acc"><span class="arrow">▸</span> read · backend/main.py <span class="spacer"></span>212L</div>
+            <div class="msg"><div class="who">◆ Claude (crewmate)</div>Service identity added without dropping <code>live_source</code>. Contract test extended, not rewritten.</div>
+            <div class="acc"><span class="arrow">▸</span> diff · backend/main.py <span class="spacer"></span>+1</div>
+            <div class="msg me"><div class="who">me</div>Keep live_source. Extend the test, don't replace it.</div>
+          </div>
+
+          <div class="ctools">
+            <label class="ctool" title="Model for this crew">
+              <span>Model</span>
+              <select id="modelSel">
+                <option value="deepseek/deepseek-v4.1-flash">v4.1 flash</option>
+                <option value="deepseek/deepseek-v4-pro">v4 pro</option>
+                <option value="moonshotai/kimi-k3.1-pro">kimi k3.1 pro</option>
+                <option value="z-ai/glm-5.3-flash">glm 5.3 flash</option>
+              </select>
+            </label>
+
+            <div class="ctool" id="effort">
+              <span>Effort</span>
+              <div class="seg">
+                <button data-e="low">low</button>
+                <button data-e="medium" class="on">med</button>
+                <button data-e="high">high</button>
+              </div>
+            </div>
+
+            <button class="ctool" id="skillsBtn" aria-expanded="false">Skills <b id="skillsCount">2</b></button>
+            <button class="ctool" id="connBtn" aria-expanded="false">Connectors <b id="connCount">4</b></button>
+
+            <div class="pop" id="skillsPop" role="group" aria-label="Skills">
+              <div class="ph2">Skills for this crew</div>
+              <label><input type="checkbox" data-skill checked> agent-reach <span class="d">web + repo</span></label>
+              <label><input type="checkbox" data-skill checked> code-review <span class="d">two-axis gate</span></label>
+              <label><input type="checkbox" data-skill> tdd <span class="d">red green refactor</span></label>
+              <label><input type="checkbox" data-skill> to-spec <span class="d">issue to spec</span></label>
+              <label><input type="checkbox" data-skill> diagnose <span class="d">reproduce first</span></label>
+              <label><input type="checkbox" data-skill> lavish <span class="d">artifact review</span></label>
+            </div>
+
+            <div class="pop" id="connPop" role="group" aria-label="Connectors">
+              <div class="ph2">MCP servers</div>
+              <label><input type="checkbox" data-conn checked> context7 <span class="d">docs</span></label>
+              <label><input type="checkbox" data-conn checked> cloudflare <span class="d">workers</span></label>
+              <label><input type="checkbox" data-conn checked> vercel <span class="d">deploy</span></label>
+              <div class="ph2">Tools</div>
+              <label><input type="checkbox" data-conn checked> bash <span class="d">argv only</span></label>
+            </div>
+          </div>
+
+          <div class="ccomposer">
+            <input placeholder="Steer e2e-healthcheck…" />
+            <button class="btn pri">Send</button>
+          </div>
+        </section>
+      </div>
+
+      <button class="scrim hide" id="scrim" aria-label="Close panel"></button>
+
+      <aside class="drawer" id="actDrawer" aria-label="Live activity">
+        <div class="row"><strong style="font-size:12px">Live activity</strong><div class="spacer"></div><button class="btn" id="closeAct">✕</button></div>
+        <div class="item"><span class="dot ok"></span><span class="nm">build-test</span><span class="label">50s</span></div>
+        <div class="item"><span class="dot ok"></span><span class="nm">pytest</span><span class="label">90</span></div>
+        <div class="item"><span class="dot run"></span><span class="nm">review gate</span><span class="label">…</span></div>
+        <div class="zt" style="margin-top:6px">Branch</div>
+        <div class="dash" style="font-family:var(--mono);font-size:11px">fm/e2e-healthcheck</div>
+        <div class="zt" style="margin-top:6px">Pull request</div>
+        <div class="dash" style="font-size:11px"><a class="pl" href="https://github.com/usman-shamim/plantmind-copilot/pull/11" target="_blank" rel="noopener">#11 — service identity</a></div>
+        <div class="zt" style="margin-top:6px">Lanes</div>
+        <div class="lanes">
+          <div class="lane"><div class="lz">Lane 1</div>e2e-healthcheck<div class="acts"><button class="btn danger">Kill</button></div></div>
+          <div class="lane"><div class="lz">Lane 2</div>csv-import<div class="acts"><button class="btn danger">Kill</button><button class="btn">Send Fix</button></div></div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- ---------------- GATE ---------------- -->
+    <section class="view" id="v-gate">
+      <h1>Review gate <span style="font-size:12px;color:var(--faint);font-weight:400">· no-mistakes, two axes</span></h1>
+      <p class="lede">Runs per project, not per UI session — several projects can be under review at once. The gate must show <em>which</em> project and <em>which</em> diff before it shows a verdict.</p>
+
+      <div class="panel" style="margin-bottom:14px">
+        <div class="ph"><strong>Daemons</strong><span class="spacer"></span><span class="label">one daemon · many repos · MemoryMax capped</span></div>
+        <div class="pb" style="padding:0">
+          <table>
+            <thead><tr><th>Project</th><th>State</th><th>Last run</th><th>Findings</th><th>Axis</th><th>PR</th></tr></thead>
+            <tbody>
+              <tr><td>plantmind-copilot</td><td><span class="chip ok">passed</span></td><td>2m ago</td><td>0</td><td>both</td>
+                <td><a class="pl" href="https://github.com/usman-shamim/plantmind-copilot/pull/11" target="_blank" rel="noopener">#11</a></td></tr>
+              <tr><td>sentinal-media</td><td><span class="chip warn">running</span></td><td>now</td><td>2</td><td>quality</td>
+                <td><a class="pl" href="https://github.com/usman-shamim/sentinal-media/pulls" target="_blank" rel="noopener">view</a></td></tr>
+              <tr><td>factory-ui</td><td><span class="chip">idle</span></td><td>1h ago</td><td>—</td><td>both</td><td>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="axis">
+          <h3>Axis 1 — spec conformance</h3>
+          <ul>
+            <li>Does the diff do what the task asked, and only that?</li>
+            <li>Are the original tests still asserting the original contract?</li>
+            <li><strong>Deleted assertions are findings, not fixes.</strong></li>
+          </ul>
+        </div>
+        <div class="axis">
+          <h3>Axis 2 — quality &amp; risk</h3>
+          <ul>
+            <li>Regression surface: every caller of a changed function.</li>
+            <li>Additive vs destructive: prefer added fields over replaced ones.</li>
+            <li>CI parity: the same gate the repo runs.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <div class="ph"><strong>Findings — sentinal-media</strong><span class="spacer"></span><span class="chip warn">2 open</span></div>
+        <div class="pb">
+          <div class="item" style="margin-bottom:7px">
+            <span class="dot bad"></span>
+            <span class="nm">Test assertion removed to make a regression pass</span>
+            <span class="chip">spec</span>
+            <button class="btn" title="Send this finding to the crewmate on that lane">Send Fix to Crew</button>
+          </div>
+          <div class="item">
+            <span class="dot warn"></span>
+            <span class="nm">New field replaces existing contract instead of extending it</span>
+            <span class="chip">quality</span>
+            <button class="btn" title="Send this finding to the crewmate on that lane">Send Fix to Crew</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------------- MAP ---------------- -->
+    <section class="view" id="v-map">
+      <h1>System map</h1>
+      <p class="lede">Mermaid for the committed architecture map (diffable, reviewable in the PR). Lavish for the interactive wireframe review loop.</p>
+
+      <div class="grid2">
+        <div class="panel"><div class="ph"><strong>Mermaid — structure</strong><span class="spacer"></span><span class="label">rendered</span></div><div class="pb">
+<pre class="mermaid">flowchart TB
+  UI["Factory Console<br/>(Caddy / Pages)"]
+  BR["bridge :8787<br/>queues only"]
+  FM["firstmate<br/>Captain"]
+  SM["secondmates"]
+  TH["treehouse<br/>worktrees"]
+  NM["no-mistakes<br/>1 daemon · many repos"]
+  GH["GitHub<br/>repos + PRs"]
+  AX["tasks-axi<br/>backlog"]
+  UI -->|"issue / steer"| BR
+  BR -->|"tasks-axi add"| AX
+  BR -->|"nudge"| FM
+  FM --> SM
+  FM --> TH
+  TH --> NM
+  NM -->|"gh pr create"| GH
+  GH -->|"webhook"| BR</pre>
+        </div></div>
+
+        <div class="panel"><div class="ph"><strong>Tool choice</strong></div><div class="pb">
+          <table>
+            <thead><tr><th>Need</th><th>Use</th></tr></thead>
+            <tbody>
+              <tr><td>Architecture map, committed</td><td>Mermaid</td></tr>
+              <tr><td>Layout wireframe, annotatable</td><td>Lavish HTML artifact</td></tr>
+              <tr><td>Review feedback to agent</td><td><code>lavish-axi poll</code></td></tr>
+              <tr><td>Shareable link</td><td>Published HTML artifact</td></tr>
+            </tbody>
+          </table>
+          <div class="note" style="margin-bottom:0">Lavish needs a browser on the machine you are sitting at. It runs on the desktop, not the headless VM.</div>
+        </div></div>
+      </div>
+
+      <div class="dash" style="margin-top:16px">
+        <h2>What the backend must grow</h2>
+        <table>
+          <thead><tr><th>Endpoint</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td><code>GET /api/projects</code> ✓</td><td>exists</td></tr>
+            <tr><td><code>POST /api/projects</code> ✓</td><td>exists</td></tr>
+            <tr><td><code>POST /api/projects/attach</code> ✓</td><td>exists</td></tr>
+            <tr><td><code>POST /api/projects/fork</code></td><td>fork an upstream repo into the account</td></tr>
+            <tr><td><code>GET /api/crews</code></td><td>firstmate + secondmates + lane usage</td></tr>
+            <tr><td><code>GET /api/gate</code></td><td>no-mistakes state per project</td></tr>
+            <tr><td><code>GET /ws</code> per room</td><td>already tails pi JSONL</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  const tabs = [...document.querySelectorAll('.tab')];
+  const views = [...document.querySelectorAll('.view')];
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.setAttribute('aria-selected', String(x === t)));
+    views.forEach(v => v.classList.toggle('on', v.id === 'v-' + t.dataset.v));
+  }));
+
+
+  // ---------------------------------------------------------------- live data
+  // Same-origin: the edge has already authenticated this page, so /api/session
+  // can mint the short-lived token the bridge wants. Nothing static is trusted.
+  const REFRESH_BUTTON = document.getElementById("dynRefresh");
+  let sessionToken = "";
+  let sessionExpiry = 0;
+  let liveSkills = [];
+  let liveConns = [];
+  let liveModels = [];
+
+  async function ensureSession(force) {
+    if (!force && sessionToken && Date.now() < sessionExpiry - 60000) return sessionToken;
+    const res = await fetch("/api/session", { method: "POST", credentials: "include" });
+    if (!res.ok) throw new Error("session " + res.status);
+    const body = await res.json();
+    sessionToken = body.token || "";
+    sessionExpiry = Date.now() + (body.expiresIn || 900) * 1000;
+    return sessionToken;
+  }
+
+  async function api(path) {
+    const token = await ensureSession();
+    const res = await fetch(path, {
+      headers: token ? { "X-Farm-Token": token } : {},
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error(path + " " + res.status);
+    return res.json();
+  }
+
+  const picked = { skills: new Set(["agent-reach", "code-review"]), conns: new Set() };
+
+  function renderList(popId, attr, items, emptyText) {
+    const pop = document.getElementById(popId);
+    if (!pop) return;
+    const head = pop.querySelector(".ph2");
+    pop.innerHTML = "";
+    if (head) pop.appendChild(head);
+    if (!items.length) {
+      const note = document.createElement("div");
+      note.className = "ph2";
+      note.style.textTransform = "none";
+      note.style.letterSpacing = "0";
+      note.textContent = emptyText;
+      pop.appendChild(note);
+      return;
+    }
+    for (const item of items) {
+      const label = document.createElement("label");
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.setAttribute(attr, item.name);
+      box.checked = picked[attr === "data-skill" ? "skills" : "conns"].has(item.name);
+      label.appendChild(box);
+      label.appendChild(document.createTextNode(" " + item.name));
+      if (item.note) {
+        const d = document.createElement("span");
+        d.className = "d";
+        d.textContent = item.note;
+        label.appendChild(d);
+      }
+      pop.appendChild(label);
+    }
+  }
+
+  function syncCounts() {
+    const skillsBtn = document.getElementById("skillsBtn");
+    const connBtn = document.getElementById("connBtn");
+    const skillsCount = document.getElementById("skillsCount");
+    const connCount = document.getElementById("connCount");
+    if (skillsCount) skillsCount.textContent = String(picked.skills.size);
+    if (connCount) connCount.textContent = String(picked.conns.size);
+    if (skillsBtn) skillsBtn.classList.toggle("active", picked.skills.size > 0);
+    if (connBtn) connBtn.classList.toggle("active", picked.conns.size > 0);
+  }
+
+  function renderModels(setup) {
+    const sel = document.getElementById("modelSel");
+    if (!sel) return;
+    const groups = new Map();
+    for (const m of setup.models || []) {
+      if (!groups.has(m.group)) groups.set(m.group, []);
+      groups.get(m.group).push(m);
+    }
+    sel.innerHTML = "";
+    for (const [group, models] of groups) {
+      const og = document.createElement("optgroup");
+      og.label = group;
+      for (const m of models) {
+        const opt = document.createElement("option");
+        opt.value = m.id;
+        opt.textContent = m.id;
+        if (m.id === setup.defaultModel) opt.selected = true;
+        og.appendChild(opt);
+      }
+      sel.appendChild(og);
+    }
+  }
+
+  async function loadLive() {
+    if (REFRESH_BUTTON) REFRESH_BUTTON.textContent = "Refreshing…";
+    try {
+      const setup = await api("/api/setup");
+      liveSkills = (setup.skills || []).map((s) => ({ name: s.name, note: s.source }));
+      liveConns = (setup.mcp || []).map((m) => ({ name: m.name, note: m.target }));
+      liveModels = setup.models || [];
+      renderModels(setup);
+      renderList("skillsPop", "data-skill", liveSkills, "No skills found on this host.");
+      renderList(
+        "connPop",
+        "data-conn",
+        liveConns,
+        setup.counts && setup.counts.mcp === 0
+          ? "No MCP servers configured on this host."
+          : "No connectors found.",
+      );
+      // Drop picks that no longer exist, so a deleted skill cannot stay selected.
+      const skillNames = new Set(liveSkills.map((s) => s.name));
+      const connNames = new Set(liveConns.map((c) => c.name));
+      for (const name of [...picked.skills]) if (!skillNames.has(name)) picked.skills.delete(name);
+      for (const name of [...picked.conns]) if (!connNames.has(name)) picked.conns.delete(name);
+      syncCounts();
+      if (REFRESH_BUTTON) REFRESH_BUTTON.textContent = "Refresh";
+    } catch (err) {
+      if (REFRESH_BUTTON) REFRESH_BUTTON.textContent = "Refresh failed";
+      console.error(err);
+    }
+  }
+
+  // Selection state follows the checkboxes.
+  document.addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.matches("[data-skill]")) picked.skills[t.checked ? "add" : "delete"](t.getAttribute("data-skill"));
+    if (t.matches("[data-conn]")) picked.conns[t.checked ? "add" : "delete"](t.getAttribute("data-conn"));
+    syncCounts();
+  });
+
+  if (REFRESH_BUTTON) REFRESH_BUTTON.addEventListener("click", (e) => { e.stopPropagation(); void loadLive(); });
+  void loadLive();
+
+  // Composer toolbar: skills and connectors are multi-select, counts stay honest.
+  [["skillsBtn", "skillsPop", "[data-skill]", "skillsCount"],
+   ["connBtn", "connPop", "[data-conn]", "connCount"]].forEach(([btnId, popId, sel, countId]) => {
+    const btn = document.getElementById(btnId);
+    const pop = document.getElementById(popId);
+    const count = document.getElementById(countId);
+    if (!btn || !pop) return;
+    const sync = () => {
+      const on = pop.querySelectorAll(sel + ":checked").length;
+      if (count) count.textContent = String(on);
+      btn.classList.toggle("active", on > 0);
+    };
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const wasOpen = pop.classList.contains("open");
+      document.querySelectorAll(".pop").forEach((p) => p.classList.remove("open"));
+      document.querySelectorAll(".ctool[aria-expanded]").forEach((b) => b.setAttribute("aria-expanded", "false"));
+      if (!wasOpen) {
+        pop.classList.add("open");
+        btn.setAttribute("aria-expanded", "true");
+      }
+    });
+    pop.addEventListener("change", sync);
+    sync();
+  });
+  document.addEventListener("click", () => {
+    document.querySelectorAll(".pop").forEach((p) => p.classList.remove("open"));
+    document.querySelectorAll(".ctool[aria-expanded]").forEach((b) => b.setAttribute("aria-expanded", "false"));
+  });
+  document.querySelectorAll("#effort .seg button").forEach((b) =>
+    b.addEventListener("click", () => {
+      document.querySelectorAll("#effort .seg button").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on");
+    }),
+  );
+
+  // Crew drawers: the rail and the activity panel are overlay panels on a phone.
+  const creww = document.getElementById('creww');
+  const scrim = document.getElementById('scrim');
+  const actDrawer = document.getElementById('actDrawer');
+  const closePanels = () => {
+    creww?.classList.remove('rail-open');
+    actDrawer?.classList.remove('open');
+    scrim?.classList.add('hide');
+  };
+  document.getElementById('openRail')?.addEventListener('click', () => {
+    creww?.classList.add('rail-open');
+    actDrawer?.classList.remove('open');
+    scrim?.classList.remove('hide');
+  });
+  document.getElementById('openAct')?.addEventListener('click', () => {
+    actDrawer?.classList.add('open');
+    creww?.classList.remove('rail-open');
+    scrim?.classList.remove('hide');
+  });
+  document.getElementById('closeAct')?.addEventListener('click', closePanels);
+  scrim?.addEventListener('click', closePanels);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanels(); });
+  creww?.querySelectorAll('.rail .item').forEach((el) =>
+    el.addEventListener('click', () => {
+      if (window.matchMedia('(max-width:760px)').matches) closePanels();
+    }),
+  );
+</script>
+</body>
+</html>
