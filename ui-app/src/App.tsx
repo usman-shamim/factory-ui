@@ -316,8 +316,8 @@ export default function App() {
     }
     const text =
       `Review gate findings for ${row.project} (${row.lastRun?.branch ?? "current branch"}):\n` +
-      `1. spec conformance — check that no test assertion was removed or weakened.\n` +
-      `2. quality and risk — extend contracts instead of replacing them; check every caller.`;
+      `1. Spec conformance: confirm no test assertion was removed or weakened.\n` +
+      `2. Quality and risk: extend contracts instead of replacing them, and check every caller.`;
     const r = await postJson(`/api/rooms/${encodeURIComponent(lane.id)}/message`, { text });
     setNotice(r.ok ? `Findings sent to ${lane.id}.` : String(r.body.error ?? `Send failed (${r.status})`));
   };
@@ -382,7 +382,7 @@ export default function App() {
       });
       const body = (await res.json()) as { delivered?: boolean; target?: string };
       if (!res.ok || !body.delivered) setNotice(`Message not delivered (${res.status})`);
-      else if (body.target === "captain") setNotice("Task not spawned yet — forwarded to the Captain.");
+      else if (body.target === "captain") setNotice("Task not spawned yet. Forwarded to the Captain.");
       else setNotice(null);
     } catch (e) {
       setNotice(`Send failed: ${(e as Error).message}`);
@@ -609,30 +609,21 @@ export default function App() {
 
         {view === "fleet" && (
           <div style={sPane}>
-            <div style={sCards}>
-              <div style={sCard}>
-                <div style={sCardLabel}>Lanes</div>
-                <div style={sCardValue}>
-                  {crews?.capacity.freeLanes ?? "—"}
-                  <span style={sCardSub}> free / {crews?.capacity.target ?? "—"}</span>
-                </div>
-                <div style={sCardSub}>{crews?.capacity.reason ?? "no verdict"}</div>
-              </div>
-              <div style={sCard}>
-                <div style={sCardLabel}>Crews</div>
-                <div style={sCardValue}>{crews?.crews.length ?? "—"}</div>
-                <div style={sCardSub}>firstmate + secondmates</div>
-              </div>
-              <div style={sCard}>
-                <div style={sCardLabel}>Queued</div>
-                <div style={sCardValue}>{crews?.queued.length ?? "—"}</div>
-                <div style={sCardSub}>waiting on capacity</div>
-              </div>
+            <div style={sCap}>
+              <span style={sCapDot(crews?.capacity.freeLanes ?? 0)} />
+              <span style={sCapLead}>
+                {crews?.capacity.freeLanes ?? "?"} of {crews?.capacity.target ?? "?"} lanes free
+              </span>
+              <span style={sCapMeta}>{crews?.capacity.reason ?? "no verdict"}</span>
+              <span style={{ flex: 1 }} />
+              <span style={sCapMeta}>
+                {crews?.crews.length ?? 0} crews, {crews?.queued.length ?? 0} queued
+              </span>
             </div>
 
             <div style={sPanel}>
               <div style={sPanelHead}>
-                <strong style={{ fontSize: 12 }}>Active lanes</strong>
+                <strong style={sSectionTitle}>Active lanes</strong>
                 <span style={sMuted}>{crews?.capacity.lanes ?? 0} running</span>
                 <span style={{ flex: 1 }} />
                 <button style={refreshBtn} onClick={() => void loadFleet()}>Refresh</button>
@@ -647,7 +638,7 @@ export default function App() {
                   </thead>
                   <tbody>
                     {laneRows.length === 0 && (
-                      <tr><td style={sTd} colSpan={6}><span style={sMuted}>No active lanes.</span></td></tr>
+                      <tr><td style={sTd} colSpan={6}><span style={sMuted}>No lanes running. The Captain dispatches queued work within the lane cap.</span></td></tr>
                     )}
                     {laneRows.map((l) => (
                       <tr key={l.id}>
@@ -670,10 +661,10 @@ export default function App() {
               </div>
             </div>
 
-            <div style={sPanel}>
-              <div style={sPanelHead}>
-                <strong style={{ fontSize: 12 }}>Queued backlog</strong>
-                <span style={sMuted}>webhook + captain</span>
+            <div style={sSection}>
+              <div style={sSectionHead}>
+                <strong style={sSectionTitle}>Queued backlog</strong>
+                <span style={sMuted}>not yet dispatched</span>
               </div>
               <div style={sTableWrap}>
                 <table style={sTable}>
@@ -685,7 +676,7 @@ export default function App() {
                   </thead>
                   <tbody>
                     {queuedRows.length === 0 && (
-                      <tr><td style={sTd} colSpan={6}><span style={sMuted}>Nothing queued.</span></td></tr>
+                      <tr><td style={sTd} colSpan={6}><span style={sMuted}>Nothing queued. Issues labeled agent-build and Captain-dispatched work arrive here.</span></td></tr>
                     )}
                     {queuedRows.map((q) => (
                       <tr key={q.id}>
@@ -710,7 +701,7 @@ export default function App() {
           <div style={sPane}>
             <div style={sPanel}>
               <div style={sPanelHead}>
-                <strong style={{ fontSize: 12 }}>Projects under gate</strong>
+                <strong style={sSectionTitle}>Projects under gate</strong>
                 <span style={sMuted}>one daemon · many repos</span>
                 <span style={{ flex: 1 }} />
                 <button style={refreshBtn} onClick={() => void loadGate()}>Refresh</button>
@@ -725,13 +716,16 @@ export default function App() {
                   </thead>
                   <tbody>
                     {gate.length === 0 && (
-                      <tr><td style={sTd} colSpan={6}><span style={sMuted}>No projects found.</span></td></tr>
+                      <tr><td style={sTd} colSpan={6}><span style={sMuted}>No projects registered. They appear here once the Captain runs intake.</span></td></tr>
                     )}
                     {gate.map((g) => (
                       <tr key={g.project}>
                         <td style={sTd}>{g.project}</td>
                         <td style={sTd}>
-                          {g.initialised ? <span style={sOkChip}>initialised</span> : <span style={sWarnChip}>not initialised</span>}
+                          <span style={sState}>
+                            <span style={g.initialised ? sStateDotOn : sStateDotOff} />
+                            {g.initialised ? "initialised" : "not initialised"}
+                          </span>
                         </td>
                         <td style={sTd}>{g.daemon ?? "—"}</td>
                         <td style={sTd}>{g.lastRun ? `${g.lastRun.state} · ${g.lastRun.branch}` : "—"}</td>
@@ -752,24 +746,22 @@ export default function App() {
               </div>
             </div>
 
-            <div style={sAxes}>
-              <div style={sAxis}>
-                <div style={sAxisTitle}>Axis 1 — spec conformance</div>
-                <ul style={sList}>
-                  <li>Does the diff do what the task asked, and only that?</li>
-                  <li>Are the original tests still asserting the original contract?</li>
-                  <li><strong>Deleted assertions are findings, not fixes.</strong></li>
-                </ul>
+            <dl style={sAxes}>
+              <div style={sAxisRow}>
+                <dt style={sAxisTitle}>Spec conformance</dt>
+                <dd style={sAxisBody}>
+                  Does the diff do what the task asked, and only that? The original tests must
+                  still assert the original contract. A deleted assertion is a finding, not a fix.
+                </dd>
               </div>
-              <div style={sAxis}>
-                <div style={sAxisTitle}>Axis 2 — quality &amp; risk</div>
-                <ul style={sList}>
-                  <li>Regression surface: every caller of a changed function.</li>
-                  <li>Additive vs destructive: extend contracts, never replace them.</li>
-                  <li>CI parity: the same gate the repo runs.</li>
-                </ul>
+              <div style={sAxisRow}>
+                <dt style={sAxisTitle}>Quality and risk</dt>
+                <dd style={sAxisBody}>
+                  Check every caller of a changed function. Extend contracts instead of replacing
+                  them. Run the same gate the repository runs.
+                </dd>
               </div>
-            </div>
+            </dl>
           </div>
         )}
       </main>
@@ -929,9 +921,10 @@ function row(on: boolean): React.CSSProperties {
     padding: "8px 12px",
     fontSize: 13,
     border: "none",
-    borderLeft: on ? "2px solid var(--cds-clay)" : "2px solid transparent",
+    borderRadius: 8,
     background: on ? "var(--cds-bg-selected)" : "transparent",
     color: "var(--cds-text-primary)",
+    fontWeight: on ? 600 : 400,
     cursor: "pointer",
   };
 }
@@ -1064,18 +1057,18 @@ const sNavOff: React.CSSProperties = {
   fontSize: 11, padding: "4px 10px", borderRadius: 8, cursor: "pointer",
   border: "1px solid transparent", background: "transparent", color: "var(--cds-text-secondary)",
 };
-const sCards: React.CSSProperties = {
-  display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10,
+const sCap: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 8, padding: "10px 0",
+  borderBottom: "1px solid var(--cds-border)",
 };
-const sCard: React.CSSProperties = {
-  border: "1px solid var(--cds-border)", borderRadius: 12, padding: 12,
-  background: "var(--cds-bg-surface)", display: "flex", flexDirection: "column", gap: 2,
+const sCapDot = (free: number): React.CSSProperties => ({
+  width: 7, height: 7, borderRadius: 999, flex: "none",
+  background: free > 0 ? "var(--cds-clay)" : "#d1453b",
+});
+const sCapLead: React.CSSProperties = {
+  fontSize: 13, fontWeight: 600, color: "var(--cds-text-primary)",
 };
-const sCardLabel: React.CSSProperties = {
-  fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--cds-text-muted)",
-};
-const sCardValue: React.CSSProperties = { fontSize: 20, fontWeight: 650, color: "var(--cds-text-primary)" };
-const sCardSub: React.CSSProperties = { fontSize: 11, color: "var(--cds-text-muted)", fontWeight: 400 };
+const sCapMeta: React.CSSProperties = { fontSize: 11, color: "var(--cds-text-muted)" };
 const sPanel: React.CSSProperties = {
   border: "1px solid var(--cds-border)", borderRadius: 12,
   background: "var(--cds-bg-surface)", overflow: "hidden",
@@ -1084,7 +1077,25 @@ const sPanelHead: React.CSSProperties = {
   display: "flex", alignItems: "center", gap: 8, padding: "9px 12px",
   borderBottom: "1px solid var(--cds-border)", background: "var(--cds-bg-secondary)",
 };
+const sSection: React.CSSProperties = { display: "flex", flexDirection: "column" };
+const sSectionHead: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 8, padding: "9px 0 7px",
+  borderBottom: "1px solid var(--cds-border)",
+};
+const sSectionTitle: React.CSSProperties = {
+  fontSize: 12, fontWeight: 600, color: "var(--cds-text-primary)",
+};
 const sMuted: React.CSSProperties = { fontSize: 11, color: "var(--cds-text-muted)" };
+const sState: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 5,
+  fontSize: 11, color: "var(--cds-text-secondary)",
+};
+const sStateDotOn: React.CSSProperties = {
+  width: 6, height: 6, borderRadius: 999, background: "var(--cds-clay)", flex: "none",
+};
+const sStateDotOff: React.CSSProperties = {
+  width: 6, height: 6, borderRadius: 999, border: "1px solid var(--cds-text-muted)", flex: "none",
+};
 const sTableWrap: React.CSSProperties = { overflowX: "auto" };
 const sTable: React.CSSProperties = { width: "100%", borderCollapse: "collapse", fontSize: 12 };
 const sTh: React.CSSProperties = {
@@ -1110,24 +1121,14 @@ const sBtn: React.CSSProperties = {
   border: "1px solid var(--cds-border)", background: "transparent",
   color: "var(--cds-text-secondary)",
 };
-const sOkChip: React.CSSProperties = {
-  fontSize: 10, padding: "1px 7px", borderRadius: 999,
-  background: "color-mix(in srgb, var(--cds-clay) 14%, transparent)", color: "var(--cds-clay)",
-};
-const sWarnChip: React.CSSProperties = {
-  fontSize: 10, padding: "1px 7px", borderRadius: 999,
-  background: "color-mix(in srgb, #d99114 16%, transparent)", color: "#d99114",
-};
-const sAxes: React.CSSProperties = {
-  display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10,
-};
-const sAxis: React.CSSProperties = {
-  border: "1px solid var(--cds-border)", borderRadius: 12, padding: 12,
-  background: "var(--cds-bg-surface)",
+const sAxes: React.CSSProperties = { margin: 0, display: "flex", flexDirection: "column" };
+const sAxisRow: React.CSSProperties = {
+  display: "grid", gridTemplateColumns: "minmax(120px, 160px) 1fr", gap: 12,
+  padding: "10px 0", borderBottom: "1px solid var(--cds-border)",
 };
 const sAxisTitle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 600, marginBottom: 6, color: "var(--cds-text-primary)",
+  fontSize: 11, fontWeight: 600, color: "var(--cds-text-primary)",
 };
-const sList: React.CSSProperties = {
-  margin: 0, paddingLeft: 16, fontSize: 12, color: "var(--cds-text-secondary)", lineHeight: 1.6,
+const sAxisBody: React.CSSProperties = {
+  margin: 0, fontSize: 12, color: "var(--cds-text-secondary)", lineHeight: 1.6, maxWidth: "68ch",
 };
