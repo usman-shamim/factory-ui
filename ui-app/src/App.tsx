@@ -548,12 +548,21 @@ export default function App() {
         )}
 
         <div style={stream}>
-          {events.length === 0 && (
-            <div style={{ opacity: 0.55, fontSize: 13 }}>
-              Waiting for live agent events…
+          {!active && (
+            <div style={sEmpty}>
+              <div style={sEmptyTitle}>No crew is running</div>
+              <div style={sEmptyBody}>
+                A room appears when the Captain dispatches a task. Open Fleet to see lane capacity
+                and queued work, or open an issue labeled agent-build in one of your projects.
+              </div>
             </div>
           )}
-          {events.map((e, i) => {
+          {active && events.length === 0 && (
+            <div style={sEmpty}>
+              <div style={sEmptyBody}>Connected to {active}. Waiting for the first event.</div>
+            </div>
+          )}
+          {active && events.map((e, i) => {
             const diff = extractDiff(e.args);
             if (diff) {
               return (
@@ -1136,4 +1145,14 @@ const sAxisTitle: React.CSSProperties = {
 };
 const sAxisBody: React.CSSProperties = {
   margin: 0, fontSize: 12, color: "var(--cds-text-secondary)", lineHeight: 1.6, maxWidth: "68ch",
+};
+
+const sEmpty: React.CSSProperties = {
+  display: "flex", flexDirection: "column", gap: 6, padding: "18px 2px", maxWidth: "66ch",
+};
+const sEmptyTitle: React.CSSProperties = {
+  fontSize: 13, fontWeight: 600, color: "var(--cds-text-primary)",
+};
+const sEmptyBody: React.CSSProperties = {
+  fontSize: 12, lineHeight: 1.6, color: "var(--cds-text-muted)",
 };
