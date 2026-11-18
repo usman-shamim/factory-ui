@@ -217,6 +217,13 @@ export function parseCrewStateLine(text) {
  * either `no active run` or an active-run block. Uninitialised output is the
  * one line `repo not initialized (run 'no-mistakes init' first)` and still exits
  * 0, which is the trap the handoff names: match the string, never the exit code.
+ *
+ * The active-run block is capitalised and puts the run id first:
+ *
+ *     Active run
+ *          id:  01M7PXQPKNFFEX501311KHVZED
+ *      branch:  fm/example
+ *
  */
 export function parseGateStatus(text) {
   const output = String(text ?? "");
@@ -231,13 +238,11 @@ export function parseGateStatus(text) {
   const afterDaemon = output.split(/^\s*daemon:.*$/m).slice(1).join("\n");
   if (/no active run/i.test(afterDaemon)) return result;
 
-  // The active-run block is not part of this build's verified readings; take a
-  // single label from it and leave it null rather than invent a run identity.
-  const activeHeader = afterDaemon.match(/^\s*active run\b[^\n]*$/m);
+  const activeHeader = afterDaemon.match(/^\s*active run\b[^\n]*$/im);
   if (activeHeader) {
     const tail = afterDaemon.slice(afterDaemon.indexOf(activeHeader[0]) + activeHeader[0].length);
-    const first = tail.split("\n").map((l) => l.trim()).find(Boolean);
-    result.activeRun = first || "active run";
+    const first = tail.split("\n").map((line) => line.trim()).find(Boolean);
+    result.activeRun = first ? first.replace(/^[a-z]+:\s*/i, "") : null;
   }
   return result;
 }

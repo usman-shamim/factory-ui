@@ -68,17 +68,19 @@ test("GET /healthz names the service, the local mode and the home", async () => 
   });
 });
 
-test("GET and POST /api/session both return the local token shape", async () => {
+test("POST /api/session returns the local token shape; other methods are refused", async () => {
   await withServer(fakeSources(), async (base) => {
-    for (const method of ["GET", "POST"]) {
-      const { status, body } = await getJson(base, "/api/session", { method });
-      assert.equal(status, 200, `${method} /api/session`);
-      assert.deepEqual(keys(body), ["email", "expiresIn", "token", "via"]);
-      assert.equal(body.via, "local");
-      assert.equal(typeof body.token, "string");
-      assert.ok(body.token.length > 0);
-      assert.equal(typeof body.expiresIn, "number");
-    }
+    const created = await getJson(base, "/api/session", { method: "POST" });
+    assert.equal(created.status, 200);
+    assert.deepEqual(keys(created.body), ["email", "expiresIn", "token", "via"]);
+    assert.equal(created.body.via, "local");
+    assert.equal(typeof created.body.token, "string");
+    assert.ok(created.body.token.length > 0);
+    assert.equal(typeof created.body.expiresIn, "number");
+
+    const fetched = await getJson(base, "/api/session");
+    assert.equal(fetched.status, 405, "the token is minted by a POST, not handed out by a GET");
+    assert.equal(fetched.body.allow, "POST");
   });
 });
 

@@ -174,9 +174,26 @@ test("parseGateStatus reads an initialised gate with an idle daemon", () => {
   assert.deepEqual(parseGateStatus(text), { initialised: true, daemon: "● running", activeRun: null });
 });
 
-test("parseGateStatus reports an active run label when one is printed", () => {
-  const text = ["  daemon:  ● running", "", "  active run", "    branch: fm/example", "    status: running"].join("\n");
-  assert.deepEqual(parseGateStatus(text), { initialised: true, daemon: "● running", activeRun: "branch: fm/example" });
+test("parseGateStatus reports the active run's id from the real block", () => {
+  const text = [
+    "    repo:  /mnt/main/Projects/VM-agent/firstmate/projects/factory",
+    "  remote:  https://github.com/usman-shamim/factory-ui.git",
+    "    gate:  /home/usman/.no-mistakes/repos/6c01e655b444.git",
+    "  daemon:  ● running",
+    "",
+    "  Active run",
+    "       id:  01M7PXQPKNFFEX501311KHVZED",
+    "   branch:  fm/factory-local-bridge",
+    "   status:  running",
+    "     head:  f611798c",
+    "  started:  2026-11-18 13:52:50",
+  ].join("\n");
+
+  assert.deepEqual(parseGateStatus(text), {
+    initialised: true,
+    daemon: "● running",
+    activeRun: "01M7PXQPKNFFEX501311KHVZED",
+  });
 });
 
 test("parseRunsTable reads the axi TOON table and its quoted empty PR", () => {

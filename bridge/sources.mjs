@@ -128,7 +128,7 @@ export function createSources({
     fmHome,
     home,
 
-    /** POST or GET /api/session. Local mode has no edge and no secret. */
+    /** POST /api/session. Local mode has no edge and no secret. */
     async session() {
       const gitEmail = await run("git", ["config", "--get", "user.email"], { cwd: fmHome, timeout: 5_000 });
       return {
@@ -441,7 +441,9 @@ export function createSources({
           title: record.title ?? record.id,
           repo: record.repo ?? null,
           state: record.state ?? "queued",
-          blocked: record.blocked_reason ?? record.blocked_by ?? null,
+          blocked: record.blocked_by
+            ? [record.blocked_by, record.blocked_reason].filter(Boolean).join(" - ")
+            : null,
           since: record.since ?? null,
           pr: record.pr_url ?? null,
         }));
@@ -561,7 +563,7 @@ export function createSources({
       state: task.current_state?.state || "unknown",
       branch: task.branch ?? null,
       pr: task.pr?.url ?? task.backlog?.pr_url ?? null,
-      window: task.endpoint?.target ?? task.paths?.meta?.window ?? `fm-${task.id}`,
+      window: task.endpoint?.target ?? `fm-${task.id}`,
       title: task.backlog?.title ?? task.id,
     }));
   }

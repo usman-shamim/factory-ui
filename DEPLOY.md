@@ -42,11 +42,11 @@ honest empty shape the handoff already records.
 | Endpoint | Source on this machine |
 | :--- | :--- |
 | `GET /healthz` | process state and `FM_HOME` (the handoff records no shape for this one) |
-| `GET /api/session`, `POST /api/session` | local mode: `via: "local"`, an opaque token, `expiresIn: 900`; the app and the sketch both post it |
+| `POST /api/session` | local mode: `via: "local"`, an opaque token, `expiresIn: 900`; the app and the sketch both post it, and it is the only accepted method |
 | `GET /api/projects` | `data/projects.md` (the `bin/fm-project-mode.sh` registry format), `repo` resolved from each clone's `git remote get-url origin` |
 | `GET /api/rooms` | `bin/fm-fleet-snapshot.sh --json` tasks, with `state/*.meta` and `bin/fm-crew-state.sh` as the fallback |
 | `GET /api/crews` | `bin/fm-capacity.sh` for capacity, the fleet snapshot for lanes, the backlog for queued work |
-| `GET /api/gate` | `no-mistakes status` (initialised, daemon), `no-mistakes runs --limit 1` (last run), `no-mistakes axi status` (its PR); a project with no local clone is `not initialised` |
+| `GET /api/gate` | `no-mistakes status` (initialised, daemon, the active run's id), `no-mistakes runs --limit 1` (last run), `no-mistakes axi status` (its PR, joined on the run's branch and head); a project with no local clone is `not initialised` |
 | `GET /api/setup` | harness from `state/*.meta`, default model from `~/.pi/agent/settings.json`, models from the command-code catalogue cache, MCP from `~/.pi/agent/mcp.json`, skills from `~/.agents/skills` and the other local skill roots |
 | `GET /api/github/repos?scope=mine\|discover&q=` | the `gh` CLI already authenticated on this machine; a `gh` failure returns no repositories plus the reason |
 
@@ -181,7 +181,7 @@ A green build is not proof the code shipped; step 2 is.
 curl -s http://127.0.0.1:8787/healthz
 
 # 2. the dev proxy reaches the same bridge on the app's origin
-curl -s http://localhost:5173/api/session
+curl -s -X POST http://localhost:5173/api/session
 curl -s http://localhost:5173/api/crews | head -c 200
 
 # 3. a write is refused with the reason, not silently ignored

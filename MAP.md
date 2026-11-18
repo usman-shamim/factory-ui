@@ -47,7 +47,7 @@ All are HTTP against the bridge; there is no SDK and no shared types.
 | Seam | Shape |
 |---|---|
 | `GET /healthz` | `{ok, service, mode, home, uptimeMs}` (the handoff records no shape for it) |
-| `GET`/`POST /api/session` | `{token, email, via, expiresIn}`; `via: "local"` in this build, a 15-minute JWT behind the edge on the VM |
+| `POST /api/session` | `{token, email, via, expiresIn}`; `via: "local"` in this build, a 15-minute JWT behind the edge on the VM |
 | `GET /api/projects` | `{projects: [{name, mode, yolo, description, repo}]}` |
 | `POST /api/projects` | `{name, description, visibility}` → creates a GitHub repo, then queues registration; **501 locally** |
 | `POST /api/projects/attach` | `{repo: "owner/name"}` → queues registration; **501 locally** |
@@ -98,9 +98,6 @@ is never bundled. Do not "fix" it by reinstalling electron.
 
 - The bridge's write endpoints and `WS /ws` are closed with 501; the live event
   stream, project creation/attach/fork, lane kill and crew messaging are unwired.
-- `GET /api/gate` reads the last run's PR from `no-mistakes axi status`. An active
-  run is reported from `no-mistakes status` when it prints one, but no active run
-  was observed while the local bridge was written.
 - Secondmate crews appear only when the fleet snapshot's `secondmate_current`
   records name a readable home; none are registered on this machine.
 - Repo-wide typecheck is red (see above).

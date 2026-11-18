@@ -10,13 +10,15 @@
  * Read endpoints (shapes: factory-handoff-2026-11-16.md §3, or DEPLOY.md):
  *
  *   GET  /healthz
- *   GET  /api/session          (POST also accepted: the app and the sketch post it)
  *   GET  /api/crews
  *   GET  /api/gate
  *   GET  /api/setup
  *   GET  /api/projects
  *   GET  /api/rooms            (the app's startup read; handoff §3 full list)
  *   GET  /api/github/repos?scope=mine|discover&q=
+ *
+ * POST /api/session mints the session both clients ask for on mount. It is the
+ * only accepted method, as on the VM's edge build.
  *
  * Write endpoints are listed in WRITE_ENDPOINTS and answer 501 with the reason
  * they are unavailable in this build. The next task fills them in here.
@@ -113,7 +115,7 @@ export function createServer({ sources = createSources(), log = () => {} } = {})
         return;
       }
 
-      if ((method === "GET" || method === "POST") && pathname === "/api/session") {
+      if (method === "POST" && pathname === "/api/session") {
         sendJson(res, 200, await sources.session());
         return;
       }
@@ -160,7 +162,7 @@ export function createServer({ sources = createSources(), log = () => {} } = {})
       if (READ_PATHS.includes(pathname)) {
         sendJson(res, 405, {
           error: `${method} is not allowed on ${pathname}`,
-          allow: pathname === "/api/session" ? "GET, POST" : "GET",
+          allow: pathname === "/api/session" ? "POST" : "GET",
         });
         return;
       }
@@ -224,7 +226,8 @@ export function startServer({
   server.listen(port, host, () => {
     log(`factory-bridge listening on http://${host}:${port}`);
     log(`  home: ${fmHome}`);
-    log(`  read: /healthz /api/session /api/projects /api/rooms /api/crews /api/gate /api/setup /api/github/repos`);
+    log(`  read: /healthz /api/projects /api/rooms /api/crews /api/gate /api/setup /api/github/repos`);
+    log(`  session: POST /api/session`);
     log(`  writes and /ws answer 501 in this local build`);
   });
 

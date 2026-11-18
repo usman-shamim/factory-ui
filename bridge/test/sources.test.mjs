@@ -69,8 +69,8 @@ const SNAPSHOT = {
   ],
   backlog: {
     records: [
-      { id: "factory-local-bridge", title: "Stand up the factory console locally", repo: "factory", state: "in_flight", since: "2026-11-18", pr_url: null, blocked_reason: null },
-      { id: "factory-design-stitch", title: "Migrate the UI to the stitch design pack", repo: "factory", state: "queued", since: "2026-11-18", pr_url: null, blocked_reason: "factory-local-bridge" },
+      { id: "factory-local-bridge", title: "Stand up the factory console locally", repo: "factory", state: "in_flight", since: "2026-11-18", pr_url: null, blocked_by: null, blocked_reason: null },
+      { id: "factory-design-stitch", title: "Migrate the UI to the stitch design pack", repo: "factory", state: "queued", since: "2026-11-18", pr_url: null, blocked_by: "factory-local-bridge", blocked_reason: null },
     ],
   },
   secondmate_current: { records: [] },
@@ -433,6 +433,71 @@ test("skills are listed in name order, not in filesystem order", async () => {
   const sources = createSources({ fmHome, home, run });
   const skills = (await sources.setup()).skills;
   assert.deepEqual(skills.map((skill) => skill.name), ["alpha", "middle", "zebra"]);
+});
+
+test("queued work names the blocker, with its reason after the id", async () => {
+  const fmHome = await tempHome();
+  const home = await tempHome();
+  const snapshot = {
+    tasks: [],
+    backlog: {
+      records: [
+        {
+          id: "blocked-task",
+          title: "Waits on the bridge",
+          repo: "factory",
+          state: "queued",
+          since: "2026-11-18",
+          blocked_by: "factory-local-bridge",
+          blocked_reason: "needs the live endpoints",
+        },
+        { id: "plain-task", title: "Not blocked", repo: "factory", state: "queued", since: "2026-11-18", blocked_by: null, blocked_reason: null },
+        { id: "reason-only", title: "Prose only", repo: "factory", state: "queued", since: "2026-11-18", blocked_by: null, blocked_reason: "waiting on a decision" },
+      ],
+    },
+  };
+
+  const { run } = fakeRunner([
+    [/bash .*\/bin\/fm-fleet-snapshot\.sh --json/, { stdout: JSON.stringify(snapshot) }],
+    [/bash .*\/bin\/fm-capacity\.sh/, { ok: false, stderr: "no helper" }],
+  ]);
+
+  const sources = createSources({ fmHome, home, run });
+  const queued = (await sources.crews()).queued;
+  assert.deepEqual(queued.map((item) => item.blocked), [
+    "factory-local-bridge - needs the live endpoints",
+    null,
+    null,
+  ]);
+});
+
+test("a task with no endpoint window is named fm-<id>, never a path record", async () => {
+  const fmHome = await tempHome();
+  const home = await tempHome();
+  const snapshot = {
+    tasks: [
+      {
+        id: "no-endpoint",
+        project: "/tmp/fm-home/projects/factory",
+        branch: "fm/no-endpoint",
+        current_state: { state: "working" },
+        pr: { url: null },
+        paths: { meta: { path: "/tmp/fm-home/state/no-endpoint.meta", present: true } },
+        backlog: { title: "No endpoint yet" },
+      },
+    ],
+  };
+
+  const { run } = fakeRunner([
+    [/bash .*\/bin\/fm-fleet-snapshot\.sh --json/, { stdout: JSON.stringify(snapshot) }],
+    [/bash .*\/bin\/fm-capacity\.sh/, { ok: false, stderr: "no helper" }],
+    [/bash .*\/bin\/fm-crew-state\.sh no-endpoint/, { stdout: "state: working · source: pane · busy\n" }],
+  ]);
+
+  const sources = createSources({ fmHome, home, run });
+  assert.deepEqual((await sources.rooms()).rooms, [
+    { id: "no-endpoint", task: "No endpoint yet", window: "fm-no-endpoint", branch: "fm/no-endpoint", pr: null, status: "working" },
+  ]);
 });
 
 test("an uninitialised clone is the not-initialised record, not an error", async () => {
