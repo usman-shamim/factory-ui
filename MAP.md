@@ -25,6 +25,7 @@ decisions.
 | `code-examples/cds-theme.css` | Token source: gray/orange ramps, semantic `--cds-*`, `[data-mode="dark"]` palette |
 | `src/index.ts` | Library entry re-exporting `code-examples/*` (not used by the app) |
 | `dist-app/` | Build output served by Caddy; regenerated, never hand-edited |
+| `wrangler.jsonc` | The `factory-ui` Worker's static-assets config (`dist-app`, SPA fallback); the connected Workers Build needs it to deploy |
 | `FACTORY-UI.md` | Split-plane framing and the edge/token rationale; points at this file for seams and at `DEPLOY.md` for runs |
 | `AGENTS.md` | **Upstream** CDS design-system guide — not a factory routing file |
 

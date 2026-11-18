@@ -159,6 +159,12 @@ session cookie that cannot reach the bridge. The origin list in
 `npx wrangler login` is also unusable on this host: it binds a browser callback
 to `localhost:8976` on a headless machine.
 
+The `factory-ui` Worker is still connected in the Cloudflare dashboard, so a
+push runs its Workers Build. That build deploys `dist-app` as static assets and
+reads the directory from [`wrangler.jsonc`](wrangler.jsonc); deleting the file
+leaves the deploy step with no config and the `Workers Builds: factory-ui` check
+red. Keep the file even though Caddy remains the served origin.
+
 ## Verify a deploy
 
 ```bash
