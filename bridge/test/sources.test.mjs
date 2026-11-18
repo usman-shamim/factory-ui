@@ -346,7 +346,7 @@ test("queued work falls back to data/backlog.md when the snapshot is unavailable
       "## In flight",
       "- [ ] running-task - Already dispatched (repo: factory) (since 2026-11-18)",
       "## Queued",
-      "- [ ] queued-task - Waiting for a lane (repo: factory) (since 2026-11-18) (blocked by: running-task)",
+      "- [ ] queued-task - Waiting for a lane blocked-by: running-task (repo: factory) (since 2026-11-18)",
     ].join("\n"),
   });
 
@@ -355,6 +355,84 @@ test("queued work falls back to data/backlog.md when the snapshot is unavailable
   const crews = await sources.crews();
   assert.deepEqual(crews.queued.map((item) => item.id), ["queued-task"]);
   assert.equal(crews.queued[0].blocked, "running-task");
+  assert.equal(crews.queued[0].title, "Waiting for a lane", "the blocker token never leaks into the task label");
+});
+
+test("the gate pairs a PR with the run of the same head and branch, never by table position", async () => {
+  const fmHome = await tempHome();
+  const home = await tempHome();
+  await writeFiles(fmHome, {
+    "data/projects.md": "- factory [no-mistakes] - Console (added 2026-11-18)\n",
+  });
+  await fs.mkdir(path.join(fmHome, "projects", "factory"), { recursive: true });
+
+  const { run } = fakeRunner([
+    [
+      /^no-mistakes status/,
+      { stdout: ["    repo:  /tmp/fm-home/projects/factory", "  daemon:  ● running", "", "  no active run"].join("\n") },
+    ],
+    [/^no-mistakes runs --limit 1/, { stdout: "  completed    fm/factory-local-bridge   c78fe2eb  2026-11-15 03:59\n" }],
+    [
+      /^no-mistakes axi status/,
+      {
+        stdout: [
+          "runs[2]{id,branch,status,head,pr}:",
+          '  "01M7NEWER",fm/factory-design-stitch,running,9a1b2c3d,"https://github.com/usman-shamim/factory-ui/pull/99"',
+          '  "01M7OLDER",fm/factory-local-bridge,completed,c78fe2eb,"https://github.com/usman-shamim/factory-ui/pull/11"',
+        ].join("\n"),
+      },
+    ],
+  ]);
+
+  const sources = createSources({ fmHome, home, run });
+  const [row] = (await sources.gate()).projects;
+  assert.equal(row.lastRun.commit, "c78fe2eb");
+  assert.equal(row.lastRun.pr, "https://github.com/usman-shamim/factory-ui/pull/11");
+});
+
+test("the gate leaves the PR null when no axi row is the run that `runs` reported", async () => {
+  const fmHome = await tempHome();
+  const home = await tempHome();
+  await writeFiles(fmHome, {
+    "data/projects.md": "- factory [no-mistakes] - Console (added 2026-11-18)\n",
+  });
+  await fs.mkdir(path.join(fmHome, "projects", "factory"), { recursive: true });
+
+  const { run } = fakeRunner([
+    [
+      /^no-mistakes status/,
+      { stdout: ["    repo:  /tmp/fm-home/projects/factory", "  daemon:  ● running", "", "  no active run"].join("\n") },
+    ],
+    [/^no-mistakes runs --limit 1/, { stdout: "  completed    fm/factory-local-bridge   c78fe2eb  2026-11-15 03:59\n" }],
+    [
+      /^no-mistakes axi status/,
+      {
+        stdout: [
+          "runs[1]{id,branch,status,head,pr}:",
+          '  "01M7NEWER",fm/factory-design-stitch,running,9a1b2c3d,"https://github.com/usman-shamim/factory-ui/pull/99"',
+        ].join("\n"),
+      },
+    ],
+  ]);
+
+  const sources = createSources({ fmHome, home, run });
+  const [row] = (await sources.gate()).projects;
+  assert.equal(row.lastRun.pr, null, "another run's PR is not borrowed");
+});
+
+test("skills are listed in name order, not in filesystem order", async () => {
+  const fmHome = await tempHome();
+  const home = await tempHome();
+  await writeFiles(home, {
+    ".agents/skills/zebra/SKILL.md": "# zebra\n",
+    ".agents/skills/alpha/SKILL.md": "# alpha\n",
+    ".agents/skills/middle/SKILL.md": "# middle\n",
+  });
+
+  const { run } = fakeRunner([]);
+  const sources = createSources({ fmHome, home, run });
+  const skills = (await sources.setup()).skills;
+  assert.deepEqual(skills.map((skill) => skill.name), ["alpha", "middle", "zebra"]);
 });
 
 test("an uninitialised clone is the not-initialised record, not an error", async () => {

@@ -83,10 +83,12 @@ export function createServer({ sources = createSources(), log = () => {} } = {})
   const server = http.createServer(async (req, res) => {
     const begin = Date.now();
     const method = (req.method ?? "GET").toUpperCase();
-    const url = new URL(req.url ?? "/", "http://127.0.0.1");
-    const pathname = url.pathname.replace(/\/+$/, "") || "/";
+    let pathname = req.url ?? "/";
 
     try {
+      const url = new URL(req.url ?? "/", "http://127.0.0.1");
+      pathname = url.pathname.replace(/\/+$/, "") || "/";
+
       const write = matchWriteEndpoint(method, pathname);
       if (write) {
         req.resume(); // drain an unexpected body so the 501 is not a reset
@@ -174,22 +176,27 @@ export function createServer({ sources = createSources(), log = () => {} } = {})
   // A WebSocket handshake is an upgrade, not a normal request: answer it in the
   // wire protocol so the client sees the 501 body instead of a dropped socket.
   server.on("upgrade", (req, socket) => {
-    const pathname = new URL(req.url ?? "/", "http://127.0.0.1").pathname.replace(/\/+$/, "") || "/";
-    const body = Buffer.from(
-      `${JSON.stringify(
-        pathname === "/ws" ? unavailable("WS /ws", LOCAL_NO_STREAM_REASON) : { error: "no route", path: pathname },
-      )}\n`,
-      "utf8",
-    );
-    const status = pathname === "/ws" ? "501 Not Implemented" : "404 Not Found";
-    socket.write(
-      `HTTP/1.1 ${status}\r\n` +
-        "content-type: application/json; charset=utf-8\r\n" +
-        `content-length: ${body.length}\r\n` +
-        "connection: close\r\n\r\n",
-    );
-    socket.end(body);
-    log(`UPGRADE ${pathname} ${status.slice(0, 3)}`);
+    socket.on("error", () => socket.destroy());
+    try {
+      const pathname = new URL(req.url ?? "/", "http://127.0.0.1").pathname.replace(/\/+$/, "") || "/";
+      const body = Buffer.from(
+        `${JSON.stringify(
+          pathname === "/ws" ? unavailable("WS /ws", LOCAL_NO_STREAM_REASON) : { error: "no route", path: pathname },
+        )}\n`,
+        "utf8",
+      );
+      const status = pathname === "/ws" ? "501 Not Implemented" : "404 Not Found";
+      socket.write(
+        `HTTP/1.1 ${status}\r\n` +
+          "content-type: application/json; charset=utf-8\r\n" +
+          `content-length: ${body.length}\r\n` +
+          "connection: close\r\n\r\n",
+      );
+      socket.end(body);
+      log(`UPGRADE ${pathname} ${status.slice(0, 3)}`);
+    } catch {
+      socket.destroy();
+    }
   });
 
   return server;

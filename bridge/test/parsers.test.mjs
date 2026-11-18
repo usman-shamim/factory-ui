@@ -93,7 +93,7 @@ test("parseCapacityLine anchors keys so lanes= cannot match inside free_lanes=",
   assert.equal(onlyFree.lanes, null, "a missing lanes= is unknown, not 0");
 });
 
-test("parseBacklog reads in-flight, queued and done sections", () => {
+test("parseBacklog reads the real blocked-by annotation and keeps it out of the title", () => {
   const markdown = [
     "# Backlog",
     "",
@@ -101,7 +101,7 @@ test("parseBacklog reads in-flight, queued and done sections", () => {
     "- [ ] factory-local-bridge - Stand up the factory console locally: bridge + dev harness (repo: factory) (kind: ship) (since 2026-11-18)",
     "  Body line that must not become a record.",
     "## Queued",
-    "- [ ] factory-design-stitch - Migrate the UI to the stitch design pack (repo: factory) (kind: ship) (since 2026-11-18) (blocked by: factory-local-bridge)",
+    "- [ ] factory-design-stitch - Migrate the factory console UI to the stitch design pack blocked-by: factory-local-bridge (repo: factory) (kind: ship) (since 2026-11-18)",
     "## Done",
     "- [x] old-task - Retired work (repo: factory) (kind: scout) https://github.com/usman-shamim/factory-ui/pull/11",
   ].join("\n");
@@ -119,10 +119,26 @@ test("parseBacklog reads in-flight, queued and done sections", () => {
     pr: null,
   });
   assert.equal(records[1].state, "queued");
+  assert.equal(
+    records[1].title,
+    "Migrate the factory console UI to the stitch design pack",
+    "the inline blocked-by annotation is not part of the title",
+  );
   assert.equal(records[1].blocked, "factory-local-bridge");
   assert.equal(records[2].state, "done");
   assert.equal(records[2].checked, true);
   assert.equal(records[2].pr, "https://github.com/usman-shamim/factory-ui/pull/11");
+});
+
+test("parseBacklog drops a blocked-by reason from the title and keeps the blocker", () => {
+  const markdown = [
+    "## Queued",
+    "- [ ] second-task - Waits on the bridge blocked-by: factory-local-bridge - needs the live endpoints (repo: factory) (since 2026-11-18)",
+  ].join("\n");
+
+  const [record] = parseBacklog(markdown);
+  assert.equal(record.title, "Waits on the bridge");
+  assert.equal(record.blocked, "factory-local-bridge");
 });
 
 test("parseMetaFile reads the task meta record", () => {

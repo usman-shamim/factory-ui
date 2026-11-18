@@ -132,8 +132,12 @@ export function parseCapacityLine(text) {
 
 /**
  * Parse `data/backlog.md` as a fallback for the fleet snapshot. Entries are
- * `- [ ] <id> - <title> (repo: <repo>) (kind: <kind>) (since <date>)`, grouped
- * under `## In flight`, `## Queued` and `## Done`.
+ * `- [ ] <id> - <title> blocked-by: <id> (repo: <repo>) (kind: <kind>)
+ * (since <date>)`, grouped under `## In flight`, `## Queued` and `## Done`.
+ *
+ * `blocked-by:` is an inline annotation in the title text, not a parenthesised
+ * field, so it is stripped from the title and read as the blocker, the same
+ * derivation `title_of`/`blocked_by` applies in `bin/fm-fleet-snapshot.sh`.
  */
 export function parseBacklog(markdown) {
   const records = [];
@@ -158,13 +162,18 @@ export function parseBacklog(markdown) {
       return match ? match[1].trim() : null;
     };
     const prMatch = body.match(/https?:\/\/\S+?\/pull\/\d+/);
+    const blockedBy = [...body.matchAll(/blocked-by:\s*([^\s)]+)/gi)].map((match) => match[1]);
     records.push({
       id,
-      title: body.split(/\s+\(/)[0].trim(),
+      title: body
+        .split(/\s+\(/)[0]
+        .replace(/\s*blocked-by:\s*[^\s)]+\s+-\s+.*$/i, "")
+        .replace(/\s*blocked-by:\s*[^\s)]+/gi, "")
+        .trim(),
       repo: fieldOf("repo"),
       state,
       checked: checked.toLowerCase() === "x",
-      blocked: fieldOf("blocked by"),
+      blocked: blockedBy.length ? [...new Set(blockedBy)].join(",") : null,
       since: fieldOf("since"),
       pr: prMatch ? prMatch[0] : null,
     });

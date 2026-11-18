@@ -409,6 +409,44 @@ test("a WebSocket upgrade is refused in the wire protocol", async () => {
   });
 });
 
+test("an aborted upgrade or a malformed request target never takes the bridge down", async () => {
+  await withServer(fakeSources(), async (base, port) => {
+    const rawSend = (payload, abortAfterWrite) =>
+      new Promise((resolve) => {
+        const socket = net.connect(port, "127.0.0.1", () => {
+          socket.write(payload);
+          if (abortAfterWrite) socket.destroy();
+        });
+        const timer = setTimeout(() => socket.destroy(), 500);
+        socket.on("data", () => {});
+        socket.on("error", () => {});
+        socket.on("close", () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+
+    const upgrade = [
+      "GET /ws HTTP/1.1",
+      "Host: 127.0.0.1",
+      "Upgrade: websocket",
+      "Connection: Upgrade",
+      "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+      "Sec-WebSocket-Version: 13",
+      "",
+      "",
+    ].join("\r\n");
+
+    // A tab closed mid-handshake resets the socket while the 501 is written.
+    for (let attempt = 0; attempt < 10; attempt += 1) await rawSend(upgrade, true);
+    await rawSend("GET http://[ HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n", false);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const health = await getJson(base, "/healthz");
+    assert.equal(health.status, 200, "the read endpoints survived the aborted handshakes");
+  });
+});
+
 test("an unknown route is a 404 and a wrong method is a 405", async () => {
   await withServer(fakeSources(), async (base) => {
     const missing = await getJson(base, "/api/nope");

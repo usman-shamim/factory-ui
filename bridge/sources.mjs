@@ -84,7 +84,8 @@ async function readJson(file) {
 
 async function listDir(dir) {
   try {
-    return await fs.readdir(dir, { withFileTypes: true });
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    return entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   } catch {
     return [];
   }
@@ -304,10 +305,16 @@ export function createSources({
         let pr = null;
         if (lastRun) {
           // `runs` records state, branch, commit and time but not the PR, and
-          // `axi status` records the PR but not the time: read both, take the
-          // newest row of the table for the PR of the newest run.
+          // `axi status` records the PR but not the time: read both and join on
+          // the run identity, so a run that starts between the two reads cannot
+          // lend its PR to this row.
           const axi = await run("no-mistakes", ["axi", "status"], { cwd: dir, timeout: 20_000 });
-          if (axi.ok) pr = parseRunsTable(axi.stdout)[0]?.pr || null;
+          if (axi.ok) {
+            const runRow = parseRunsTable(axi.stdout).find(
+              (row) => row.head === lastRun.commit && row.branch === lastRun.branch,
+            );
+            pr = runRow?.pr ?? null;
+          }
         }
 
         rows.push({
