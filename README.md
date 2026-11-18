@@ -81,8 +81,9 @@ reimplementation of the Claude Design System. Its `code-examples/` directory is
 vendored here unmodified, and its Chinese README is preserved at
 [`docs/UPSTREAM-README.zh.md`](docs/UPSTREAM-README.zh.md).
 
-What this repository adds is the application shell in `ui-app/`: session handling,
-rooms, projects, the WebSocket stream and the theme.
+What this repository adds is the application shell in `ui-app/` — session handling,
+rooms, projects, the WebSocket stream and the theme — plus the local bridge in
+`bridge/` that serves those read models from a Firstmate home on this machine.
 
 ## License
 

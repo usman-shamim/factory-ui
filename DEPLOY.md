@@ -47,7 +47,7 @@ honest empty shape the handoff already records.
 | `GET /api/rooms` | `bin/fm-fleet-snapshot.sh --json` tasks, with `state/*.meta` and `bin/fm-crew-state.sh` as the fallback |
 | `GET /api/crews` | `bin/fm-capacity.sh` for capacity, the fleet snapshot for lanes, the backlog for queued work |
 | `GET /api/gate` | `no-mistakes status` (initialised, daemon, the active run's id), `no-mistakes runs --limit 1` (last run), `no-mistakes axi status` (its PR, joined on the run's branch and head); a project with no local clone is `not initialised` |
-| `GET /api/setup` | harness from `state/*.meta`, default model from `~/.pi/agent/settings.json`, models from the command-code catalogue cache, MCP from `~/.pi/agent/mcp.json`, skills from `~/.agents/skills` and the other local skill roots |
+| `GET /api/setup` | harness from `state/*.meta`; default model from `~/.pi/agent/settings.json`, then `~/.commandcode/config.json`; models from the command-code catalogue cache; MCP from `~/.pi/agent/mcp.json`, then `~/.commandcode/mcp.json`; skills from `~/.agents/skills`, `$FM_HOME/skills`, `~/.pi/agent/skills`, `~/.commandcode/skills` |
 | `GET /api/github/repos?scope=mine\|discover&q=` | the `gh` CLI already authenticated on this machine; a `gh` failure returns no repositories plus the reason |
 
 `GET /api/rooms` is not in the handoff's GET list (§3) but it is in its full

@@ -132,8 +132,9 @@ export function parseCapacityLine(text) {
 
 /**
  * Parse `data/backlog.md` as a fallback for the fleet snapshot. Entries are
- * `- [ ] <id> - <title> blocked-by: <id> (repo: <repo>) (kind: <kind>)
- * (since <date>)`, grouped under `## In flight`, `## Queued` and `## Done`.
+ * `- [ ] <id> - <title> blocked-by: <id> [- <reason>] (repo: <repo>)
+ * (kind: <kind>) (since <date>)`, grouped under `## In flight`, `## Queued` and
+ * `## Done`.
  *
  * `blocked-by:` is an inline annotation in the title text, not a parenthesised
  * field, so it is stripped from the title and read as the blocker, the same

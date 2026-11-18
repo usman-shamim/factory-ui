@@ -6,55 +6,36 @@ crewmate lanes (`fm-<task>`), and the event stream shows live tool calls and dif
 Built on [open-claude-ui](https://github.com/Caho1/open-claude-ui), which supplies
 the Claude-style message bubbles and the streaming diff viewer.
 
-Paths and seams: [`MAP.md`](MAP.md). Vocabulary and decisions: [`CONTEXT.md`](CONTEXT.md).
-Deployment: [`DEPLOY.md`](DEPLOY.md).
+Each fact has one owner document; this file only frames the split.
 
-## What it talks to
-
-`factory-bridge` on the VM, through its public HTTPS endpoint:
-
-| Route | Purpose |
+| Question | Owner |
 | --- | --- |
-| `POST /api/session` | Exchanges the edge identity for a 15-minute session JWT |
-| `GET /api/projects` | Registered projects, with the repo resolved from each clone's origin |
-| `POST /api/projects` | Creates a GitHub repository, then queues registration for the Captain |
-| `POST /api/projects/attach` | Adopts an existing `owner/name`, then queues registration |
-| `GET /api/rooms` | Lists rooms (task, worktree branch, PR, status) |
-| `POST /api/rooms/:id/message` | Steers a worker, or the Captain when the task is queued |
-| `WS /ws` | Live tool calls, message turns, and diffs |
+| Every route and its exact shape | [`MAP.md`](MAP.md) |
+| Vocabulary and architecture decisions | [`CONTEXT.md`](CONTEXT.md) |
+| Running it — local bridge and dev server, host deploy, gates | [`DEPLOY.md`](DEPLOY.md) |
 
-Authentication is the **edge gate**, not a secret in the bundle: `oauth2-proxy`
-(GitHub SSO) protects the whole site, and the bridge mints a short-lived session
-JWT which the app sends as `X-Farm-Token`. `Authorization` is deliberately not
-used — the edge consumes it.
+## The split
 
+```
+browser ──HTTPS──► edge (GitHub SSO) ──► static app
+                          └───────────► bridge ──► firstmate ──► crewmates
+```
+
+The app is static and never holds a long-lived credential. On the factory host
+`oauth2-proxy` gates the site and the bridge mints a short-lived session JWT,
+which the app sends as `X-Farm-Token` — `Authorization` belongs to the edge.
 `VITE_BRIDGE_TOKEN` exists only as a legacy fallback and must **not** be set for a
-build. A static token in a static bundle is a published credential.
+build: a static token in a static bundle is a published credential.
 
 The terminal (`ttyd`, port 7681) is deliberately never proxied publicly.
 
-## Deploy
+## Local run
 
-```bash
-VITE_BRIDGE_URL=https://factory.usman-hermes.duckdns.org npm run build:app
-```
-
-The variable is required: `ui-app/vite.config.ts` throws without a bare
-`http(s)://` URL.
-
-- **Caddy on the VM (live)** — serves `dist-app` at `/` and proxies `/api/*` and
-  `/ws`. No deploy step beyond building.
-- **Cloudflare Pages (not created)** — build command `npm run build:app`, output
-  `dist-app`, `VITE_BRIDGE_URL` as an environment variable. Details, including
-  why Vercel is not used here, are in [`DEPLOY.md`](DEPLOY.md).
-
-## Local build check
-
-```bash
-npm install
-VITE_BRIDGE_URL=https://example.invalid npm run build:app
-npx tsc -p ui-app/tsconfig.json --noEmit
-```
+The bridge lives in [`bridge/`](bridge/) in this repository, so the console also
+runs on a workstation against that machine's Firstmate home: `npm run bridge` and
+`npm run dev`, one origin, no edge. In that mode every write endpoint and `WS /ws`
+answer `501` with the reason. Commands, sources and the closed-endpoint list are
+in [`DEPLOY.md`](DEPLOY.md).
 
 The VM itself never runs a dev server: the split plane keeps frontend RAM at zero
 there.
