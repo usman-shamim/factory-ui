@@ -39,21 +39,32 @@ See [`MAP.md`](MAP.md) for paths and the exact request/response seams, and
 
 ## Run it
 
+Locally the console runs against this machine's Firstmate home. Two commands, one
+origin:
+
 ```bash
 npm install
+npm run bridge   # terminal 1: the bridge on 127.0.0.1:8787
+npm run dev      # terminal 2: the app on http://localhost:5173
+```
 
-VITE_BRIDGE_URL=https://your-bridge.example npm run dev      # dev server
+`npm run dev` proxies `/api` and `/ws` to the bridge, so the app keeps relative
+fetch paths and no CORS appears. Do not set `VITE_BRIDGE_URL` for the dev server;
+the deployed build below still requires it.
+
+```bash
 VITE_BRIDGE_URL=https://your-bridge.example npm run build:app # → dist-app/
 ```
 
-The variable is required — `ui-app/vite.config.ts` refuses to build without a bare
-`http(s)://` URL, because a mis-pasted markdown autolink otherwise produces a bundle
-that calls an unreachable host.
+The variable is required for a build — `ui-app/vite.config.ts` refuses to build without
+a bare `http(s)://` URL, because a mis-pasted markdown autolink otherwise produces a
+bundle that calls an unreachable host.
 
-Typecheck the app:
+Typecheck the app and test the bridge:
 
 ```bash
 npx tsc -p ui-app/tsconfig.json --noEmit
+npm test
 ```
 
 `npm run typecheck` (repo-wide) fails on `code-examples/createClaudeMainWindow.ts`,

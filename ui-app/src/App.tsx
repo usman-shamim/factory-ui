@@ -4,6 +4,9 @@ import { StreamingDiffViewer } from "../../code-examples/StreamingDiffViewer";
 
 const BRIDGE_URL = (import.meta.env.VITE_BRIDGE_URL ?? "").replace(/\/+$/, "");
 const LEGACY_TOKEN = import.meta.env.VITE_BRIDGE_TOKEN ?? "";
+// `npm run dev` proxies /api and /ws onto the bridge from this same origin, so
+// dev requests stay relative and need no absolute URL (and no CORS).
+const SAME_ORIGIN_DEV = import.meta.env.DEV;
 
 interface Room {
   id: string;
@@ -91,7 +94,7 @@ let sessionExpiry = 0;
  */
 async function ensureSession(force = false): Promise<string> {
   if (!force && sessionToken && Date.now() < sessionExpiry - 60_000) return sessionToken;
-  if (BRIDGE_URL) {
+  if (BRIDGE_URL || SAME_ORIGIN_DEV) {
     try {
       const res = await fetch(`${BRIDGE_URL}/api/session`, {
         method: "POST",
@@ -202,7 +205,7 @@ export default function App() {
   }, [applyRooms]);
 
   useEffect(() => {
-    if (!BRIDGE_URL) {
+    if (!BRIDGE_URL && !SAME_ORIGIN_DEV) {
       setStatus("down");
       setNotice("VITE_BRIDGE_URL must be set at build time.");
       return;
@@ -215,7 +218,9 @@ export default function App() {
       if (cancelled) return;
       void ensureSession().then((token) => {
         if (cancelled || !token) return;
-        const wsBase = BRIDGE_URL.replace(/^http/, "ws");
+        const wsBase = BRIDGE_URL
+          ? BRIDGE_URL.replace(/^http/, "ws")
+          : window.location.origin.replace(/^http/, "ws");
         // The edge gate authenticates the handshake; a token in the query
         // string would leak into access logs, so none is sent here.
         ws = new WebSocket(`${wsBase}/ws`);
@@ -486,7 +491,9 @@ export default function App() {
             <div style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {active ?? "No room selected"}
             </div>
-            <div style={{ fontSize: 11, opacity: 0.6 }}>{BRIDGE_URL || "bridge URL not configured"}</div>
+            <div style={{ fontSize: 11, opacity: 0.6 }}>
+              {BRIDGE_URL || (SAME_ORIGIN_DEV ? "same origin (dev proxy)" : "bridge URL not configured")}
+            </div>
           </div>
           <div style={sNav}>
             {(["crew", "fleet", "gate"] as const).map((v) => (

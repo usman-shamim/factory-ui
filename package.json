@@ -34,7 +34,10 @@
     "check:tokens": "node scripts/check-tokens.mjs",
     "storybook": "open docs/claude-components-storybook.html",
     "build:app": "vite build --config ui-app/vite.config.ts",
-    "build:lib": "tsc -p tsconfig.build.json"
+    "build:lib": "tsc -p tsconfig.build.json",
+    "bridge": "node bridge/server.mjs",
+    "dev": "vite --config ui-app/vite.config.ts",
+    "test": "node --test bridge/test/*.test.mjs"
   },
   "keywords": [
     "claude",
